@@ -108,7 +108,7 @@ class PicoCTFDownloader:
             if resp.status_code == 200:
                 # Extract problem data from page HTML / embedded JSON
                 import re
-                matches = re.findall(r'"problems"\s*:\s*(\[.*?\])', resp.text, re.DOTALL)
+                matches = re.findall(r'"problems"\s*:\s*(\[.*\])', resp.text, re.DOTALL)
                 if matches:
                     return json.loads(matches[0])
         except Exception:

@@ -163,14 +163,15 @@ class ChallengeGenerator:
             if not response:
                 return False
 
-            # Parse JSON from response
+            # Parse JSON from response using raw_decode starting from the first '{'
+            # so nested braces and large JSON objects are handled correctly
             import re
-            match = re.search(r"\{.*\}", response, re.DOTALL)
-            if not match:
+            first_brace = response.find("{")
+            if first_brace == -1:
                 return False
 
             try:
-                challenge = json.loads(match.group())
+                challenge, _ = json.JSONDecoder().raw_decode(response, first_brace)
             except json.JSONDecodeError:
                 return False
 

@@ -136,7 +136,7 @@ class OrchestratorAgent:
             module = importlib.import_module(module_path)
             AgentClass = getattr(module, class_name)
             return AgentClass(model_path=self.model_path, device=self.device)
-        except (ImportError, AttributeError) as e:
+        except (ImportError, AttributeError, TypeError) as e:
             logger.warning(f"Could not load agent for {category}: {e}")
             return FallbackAgent(model_path=self.model_path)
 

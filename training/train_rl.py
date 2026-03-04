@@ -139,6 +139,9 @@ def compute_advantages(score_groups: list[list[float]]) -> list[list[float]]:
     """Compute group-relative advantages for GRPO."""
     advantages = []
     for group in score_groups:
+        if not group:
+            advantages.append([])
+            continue
         mean = sum(group) / len(group)
         # FF-2 FIX: Use sample std (divide by N-1) instead of population std (divide by N)
         # to match TRL/OpenAI GRPO implementations and avoid systematically inflated advantages
@@ -287,10 +290,10 @@ def main():
     model = get_peft_model(model, lora_cfg)
     model = model.to(device)
 
-    # FF-5 FIX: Load ref_model on CPU and move to device only at inference time to avoid
-    # doubling GPU memory usage when both training model and ref model occupy the same device.
+    # Load ref_model with device_map="auto" so it lives on GPU throughout training.
+    # Moving it to CPU and back to GPU every step causes expensive PCIe transfers.
     ref_model = AutoModelForCausalLM.from_pretrained(
-        args.base_model, trust_remote_code=True, torch_dtype=torch.bfloat16, device_map="cpu"
+        args.base_model, trust_remote_code=True, torch_dtype=torch.bfloat16, device_map="auto"
     )
     ref_model.eval()
     for p in ref_model.parameters():
@@ -366,7 +369,15 @@ def main():
                 [{"role": "user", "content": p["prompt"]}],
                 tokenize=False, add_generation_prompt=True
             )
+            adv_group = advantage_groups[i] if i < len(advantage_groups) else []
             for j, comp in enumerate(comps):
+                # Bounds check: skip if reward scoring returned fewer scores than completions
+                if j >= len(adv_group):
+                    logger.warning(
+                        f"step={global_step}, prompt={i}: advantage group has {len(adv_group)} entries "
+                        f"but completion index {j} is out of bounds — skipping"
+                    )
+                    continue
                 full = prompt_text + comp
                 # FF-19 FIX: Warn when truncation silently cuts the response region,
                 # which would corrupt response_mask and skew the GRPO loss signal.
@@ -388,7 +399,7 @@ def main():
                     "attention_mask": enc.attention_mask.squeeze(0),
                     "response_mask": resp_mask,
                 })
-                flat_adv.append(advantage_groups[i][j])
+                flat_adv.append(adv_group[j])
 
         if not flat_items:
             continue
@@ -415,10 +426,10 @@ def main():
         resp_t = torch.stack(resp_list).to(device)
         adv_t = torch.tensor(flat_adv, dtype=torch.float32).to(device)
 
-        # FF-5 FIX cont.: move ref_model tensors to device for inference, then back to CPU
-        ref_model_device = ref_model.to(device)
-        ref_lp = compute_ref_log_probs(ref_model_device, input_ids_t, attn_t, resp_t)
-        ref_model.to("cpu")
+        # Run ref_model inference on the same device as training model.
+        # Keeping ref_model on CPU and shuttling it to GPU every step wastes
+        # PCIe bandwidth; instead we keep it on device throughout the loop.
+        ref_lp = compute_ref_log_probs(ref_model, input_ids_t, attn_t, resp_t)
 
         loss, metrics = compute_grpo_loss(model, ref_lp, input_ids_t, attn_t, resp_t, adv_t, args.kl_coeff)
         # FF-17 FIX: Scale loss by accumulation steps so effective LR is preserved

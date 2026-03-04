@@ -11,6 +11,7 @@ Endpoints:
 Run: uvicorn deploy.api_server:app --host 0.0.0.0 --port 8080
 """
 
+import asyncio
 import json
 import os
 import time
@@ -37,12 +38,19 @@ MODEL_PATH = os.environ.get("MODEL_PATH", "checkpoints/flagfoundry-final")
 _orchestrator = None
 
 
-def get_orchestrator():
+def _load_orchestrator_sync():
+    """Load (or return cached) orchestrator — called from a thread executor."""
     global _orchestrator
     if _orchestrator is None:
         from agents.orchestrator_agent import OrchestratorAgent
         _orchestrator = OrchestratorAgent(model_path=MODEL_PATH)
     return _orchestrator
+
+
+async def get_orchestrator():
+    """Return the orchestrator, loading it in a thread pool to avoid blocking the event loop."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _load_orchestrator_sync)
 
 
 class SolveRequest(BaseModel):
@@ -94,13 +102,17 @@ async def solve(req: SolveRequest):
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid base64 file data")
 
-    orchestrator = get_orchestrator()
+    orchestrator = await get_orchestrator()
     try:
-        result = orchestrator.solve(
-            description=req.description,
-            file_bytes=file_bytes,
-            filename=req.filename,
-            category_override=req.category,
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: orchestrator.solve(
+                description=req.description,
+                file_bytes=file_bytes,
+                filename=req.filename,
+                category_override=req.category,
+            ),
         )
         return result
     except Exception as e:
@@ -149,8 +161,12 @@ async def stream_solve(websocket: WebSocket):
 
         await websocket.send_json({"type": "status", "message": "Generating exploit..."})
 
-        orchestrator = get_orchestrator()
-        result = orchestrator.solve(description=description, category_override=category)
+        orchestrator = await get_orchestrator()
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: orchestrator.solve(description=description, category_override=category),
+        )
 
         for i, step in enumerate(result.get("reasoning", [])):
             await websocket.send_json({"type": "reasoning", "step": i + 1, "text": step})

@@ -115,7 +115,12 @@ class SynthesisPipeline:
         for writer in writers.values():
             writer.close()
 
-        n_saved = sum(1 for r in results if r is True)
+        n_saved = 0
+        for r in results:
+            if isinstance(r, BaseException):
+                logger.error(f"Synthesis task raised an exception: {r}")
+            elif r is True:
+                n_saved += 1
         logger.info(f"Synthesis complete: {n_saved:,} new triples saved")
         return n_saved
 
@@ -266,11 +271,13 @@ class SynthesisPipeline:
         except json.JSONDecodeError:
             pass
 
-        # Try to find JSON block
-        match = re.search(r"\{.*\}", response, re.DOTALL)
-        if match:
+        # Try to find JSON block using raw_decode starting from the first '{'
+        # so nested braces and large JSON objects are handled correctly
+        first_brace = response.find("{")
+        if first_brace != -1:
             try:
-                return json.loads(match.group())
+                obj, _ = json.JSONDecoder().raw_decode(response, first_brace)
+                return obj
             except json.JSONDecodeError:
                 pass
 

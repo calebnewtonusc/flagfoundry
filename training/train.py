@@ -172,7 +172,7 @@ def main():
         eval_strategy="steps" if val_ds else "no",
         eval_steps=max(1, steps_per_epoch // 4) if val_ds else None,
         save_strategy="steps",
-        save_steps=steps_per_epoch // 2,
+        save_steps=max(1, steps_per_epoch // 2),
         save_total_limit=3,
         load_best_model_at_end=bool(val_ds),
         report_to="wandb" if os.environ.get("WANDB_API_KEY") else "none",

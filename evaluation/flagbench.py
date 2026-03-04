@@ -213,13 +213,13 @@ class FlagBench:
         for f in sorted(cat_dir.glob("*.json")):
             try:
                 data = json.loads(f.read_text())
-                # FF-15 FIX: Use the filename field from the JSON record (which includes extension)
-                # instead of f.stem (which strips the extension, breaking lookup of .elf/.zip/.pcap files)
-                file_path = cat_dir / data.get("filename", f.stem)
+                # Use f.name (includes extension) as fallback so .elf/.zip/.pcap
+                # challenge files are found correctly when no filename is in the record.
+                file_path = cat_dir / data.get("filename", f.name)
                 if file_path.exists():
                     data["file_bytes"] = file_path.read_bytes()
                     # Preserve the original filename from the record (keeps extension)
-                    data.setdefault("filename", f.stem)
+                    data.setdefault("filename", f.name)
                 challenges.append(data)
             except Exception as e:
                 logger.debug(f"Error loading challenge {f}: {e}")

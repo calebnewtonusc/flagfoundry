@@ -37,7 +37,7 @@ if [ "$FROM_STAGE" -le 1 ]; then
 
     echo "  [1/4] Crawling CTFtime writeups (years 2018-2025)..."
     python discovery/ctftime_crawler.py \
-        --years 2018 2025 \
+        --years $(seq 2018 2025) \
         --workers 30 \
         --output-dir data/raw/ctftime
 

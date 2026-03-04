@@ -169,7 +169,7 @@ def main():
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
-    model_kwargs = dict(torch_dtype=torch.bfloat16, device_map=None)
+    model_kwargs = dict(torch_dtype=torch.bfloat16, device_map="auto")
     model = AutoModelForCausalLM.from_pretrained(args.base_model, trust_remote_code=True, **model_kwargs)
     model.enable_input_require_grads()
 
@@ -183,7 +183,10 @@ def main():
     model = get_peft_model(model, lora_cfg)
     model.print_trainable_parameters()
 
-    ref_model = AutoModelForCausalLM.from_pretrained(args.base_model, trust_remote_code=True, **model_kwargs)
+    ref_model = AutoModelForCausalLM.from_pretrained(
+        args.base_model, trust_remote_code=True,
+        torch_dtype=torch.bfloat16, device_map="auto"
+    )
     ref_model.eval()
     for p in ref_model.parameters():
         p.requires_grad_(False)
@@ -200,48 +203,33 @@ def main():
     # FF-13 FIX: Use args.num_epochs instead of hardcoded * 3
     total_steps = min(args.max_steps, math.ceil(len(train_ds) / effective_batch) * args.num_epochs)
 
-    try:
-        training_args = DPOConfig(
-            output_dir=str(output_dir),
-            max_steps=total_steps,
-            per_device_train_batch_size=args.batch_size,
-            per_device_eval_batch_size=args.batch_size,
-            gradient_accumulation_steps=args.grad_accum,
-            gradient_checkpointing=True,
-            learning_rate=args.learning_rate,
-            lr_scheduler_type="cosine",
-            warmup_steps=30,
-            bf16=True,
-            logging_steps=10,
-            eval_strategy="steps",
-            eval_steps=100,
-            save_strategy="steps",
-            save_steps=200,
-            save_total_limit=3,
-            load_best_model_at_end=True,
-            metric_for_best_model="rewards/margins",
-            report_to="none",
-            deepspeed=args.deepspeed,
-            beta=args.beta,
-            max_length=args.max_length,
-            max_prompt_length=args.max_prompt_length,
-        )
-    except TypeError:
-        training_args = TrainingArguments(
-            output_dir=str(output_dir),
-            max_steps=total_steps,
-            per_device_train_batch_size=args.batch_size,
-            gradient_accumulation_steps=args.grad_accum,
-            learning_rate=args.learning_rate,
-            bf16=True,
-            logging_steps=10,
-            eval_strategy="steps",
-            eval_steps=100,
-            save_strategy="steps",
-            save_steps=200,
-            deepspeed=args.deepspeed,
-            report_to="none",
-        )
+    # Always use DPOConfig — DPOTrainer requires it and crashes with bare TrainingArguments.
+    # metric_for_best_model must be the eval-prefixed key that DPOTrainer actually logs.
+    training_args = DPOConfig(
+        output_dir=str(output_dir),
+        max_steps=total_steps,
+        per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.batch_size,
+        gradient_accumulation_steps=args.grad_accum,
+        gradient_checkpointing=True,
+        learning_rate=args.learning_rate,
+        lr_scheduler_type="cosine",
+        warmup_steps=30,
+        bf16=True,
+        logging_steps=10,
+        eval_strategy="steps",
+        eval_steps=100,
+        save_strategy="steps",
+        save_steps=200,
+        save_total_limit=3,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_rewards/margins",
+        report_to="none",
+        deepspeed=args.deepspeed,
+        beta=args.beta,
+        max_length=args.max_length,
+        max_prompt_length=args.max_prompt_length,
+    )
 
     trainer = DPOTrainer(
         model=model,

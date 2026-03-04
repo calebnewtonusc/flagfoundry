@@ -2,7 +2,7 @@
 # Run: deepspeed --num_gpus=10 training/train_rl.py
 
 model:
-  base_model: "Qwen/Qwen2.5-7B-Coder-Instruct"
+  base_model: "Qwen/Qwen2.5-Coder-7B-Instruct"
   sft_adapter: "./checkpoints/sft"
   output_dir: "./checkpoints/rl"
 

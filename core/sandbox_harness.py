@@ -183,8 +183,16 @@ class SandboxHarness:
     def _execute_exploit(
         self, exploit_code: str, challenge_container: str
     ) -> subprocess.CompletedProcess:
-        """Execute exploit code in an isolated Docker container."""
-        # Write exploit to temp file
+        """Execute exploit code in an isolated Docker container.
+
+        Instead of bind-mounting a host temp file (which breaks when this harness
+        itself runs inside a container because the host path is not visible inside
+        the inner container), we start the runner container, copy the exploit in
+        via `docker cp`, then exec it.  This works regardless of whether the harness
+        is running on bare metal or inside Docker.
+        """
+        container_name = f"exploit_runner_{uuid.uuid4().hex[:12]}"
+
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".py", delete=False, encoding="utf-8"
         ) as f:
@@ -192,20 +200,39 @@ class SandboxHarness:
             exploit_path = f.name
 
         try:
-            # Set challenge host env var for the exploit
-            result = subprocess.run(
+            # Start the runner container detached (no volume mount)
+            start_result = subprocess.run(
                 [
                     "docker", "run",
                     "--rm",
+                    "--detach",
+                    "--name", container_name,
                     "--network", self.network_name,
                     "--memory", "512m",
                     "--cpus", "1.0",
-                    "--volume", f"{exploit_path}:/exploit/run.py:ro",
                     "--env", f"CHALLENGE_HOST={challenge_container}",
                     "--env", "CHALLENGE_PORT=1337",
+                    "--entrypoint", "sleep",
                     EXPLOIT_RUNNER_IMAGE,
-                    "python", "/exploit/run.py",
+                    str(self.timeout + 5),
                 ],
+                capture_output=True, text=True, timeout=15,
+            )
+            if start_result.returncode != 0:
+                return subprocess.CompletedProcess(
+                    args=[], returncode=-2,
+                    stdout="", stderr=f"Failed to start runner container: {start_result.stderr}"
+                )
+
+            # Copy the exploit script into the running container
+            subprocess.run(
+                ["docker", "cp", exploit_path, f"{container_name}:/exploit_run.py"],
+                capture_output=True, timeout=10,
+            )
+
+            # Execute the exploit inside the container
+            result = subprocess.run(
+                ["docker", "exec", container_name, "python", "/exploit_run.py"],
                 capture_output=True,
                 text=True,
                 timeout=self.timeout,
@@ -224,6 +251,11 @@ class SandboxHarness:
             )
         finally:
             Path(exploit_path).unlink(missing_ok=True)
+            # Stop the runner container (best-effort)
+            subprocess.run(
+                ["docker", "rm", "-f", container_name],
+                capture_output=True, timeout=5
+            )
 
     def _stop_challenge(self, container_id: str):
         """Stop and remove the challenge container."""
