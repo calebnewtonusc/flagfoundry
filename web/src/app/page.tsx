@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode, type CSSProperties, type FormEvent } from "react";
 
 const ACCENT = "#F97316";
 
@@ -19,7 +19,7 @@ function useReveal() {
   return ref;
 }
 
-function RevealDiv({ children, className = "", style }: { children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
+function RevealDiv({ children, className = "", style }: { children: ReactNode; className?: string; style?: CSSProperties }) {
   const ref = useReveal();
   return <div ref={ref} className={`reveal ${className}`} style={style}>{children}</div>;
 }
@@ -28,7 +28,7 @@ export default function FlagFoundryPage() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (email) setSubmitted(true);
   };
