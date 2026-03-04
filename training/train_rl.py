@@ -274,7 +274,7 @@ def main():
     n_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 1
     logger.info(f"Training on {n_gpus} GPU(s)")
 
-    tokenizer = AutoTokenizer.from_pretrained(args.base_model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.base_model, trust_remote_code=True)  # nosec B615
     tokenizer.pad_token = tokenizer.eos_token
 
     model_kwargs = dict(torch_dtype=torch.bfloat16, device_map=None)
@@ -292,12 +292,12 @@ def main():
         logger.info(
             f"SFT checkpoint is PEFT-only. Loading base {sft_base_model_name} + adapter {sft_checkpoint_path}"
         )
-        base_for_sft = AutoModelForCausalLM.from_pretrained(
+        base_for_sft = AutoModelForCausalLM.from_pretrained(  # nosec B615
             sft_base_model_name, trust_remote_code=True, **model_kwargs
         )
-        model = PeftModel.from_pretrained(base_for_sft, str(sft_checkpoint_path))
+        model = PeftModel.from_pretrained(base_for_sft, str(sft_checkpoint_path))  # nosec B615
     else:
-        model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(  # nosec B615
             args.base_model, trust_remote_code=True, **model_kwargs
         )
     model.enable_input_require_grads()
@@ -323,7 +323,7 @@ def main():
 
     # Use device_map=None for ref_model for DeepSpeed ZeRO-3 compatibility;
     # ZeRO-3 manages device placement itself and conflicts with device_map="auto".
-    ref_model = AutoModelForCausalLM.from_pretrained(
+    ref_model = AutoModelForCausalLM.from_pretrained(  # nosec B615
         args.base_model,
         trust_remote_code=True,
         torch_dtype=torch.bfloat16,

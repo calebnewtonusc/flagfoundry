@@ -1,3 +1,4 @@
+---
 # Stage 3: DPO config — FlagFoundry
 # Run: deepspeed --num_gpus=10 training/train_dpo.py
 

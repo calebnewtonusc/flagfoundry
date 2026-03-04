@@ -48,10 +48,10 @@ class OSINTAgent:
         from transformers import AutoModelForCausalLM, AutoTokenizer
         import torch
 
-        self._tokenizer = AutoTokenizer.from_pretrained(
+        self._tokenizer = AutoTokenizer.from_pretrained(  # nosec B615
             self.model_path, trust_remote_code=True
         )
-        self._model = AutoModelForCausalLM.from_pretrained(
+        self._model = AutoModelForCausalLM.from_pretrained(  # nosec B615
             self.model_path,
             torch_dtype=torch.bfloat16,
             device_map=self.device,

@@ -283,7 +283,7 @@ class SandboxHarness:
                 ["docker", "stop", container_id], capture_output=True, timeout=5
             )
         except Exception:
-            pass
+            pass  # intentional: best-effort cleanup, ignore failures
 
     def _extract_flag(self, output: str) -> Optional[str]:
         """Extract flag from exploit output using common flag patterns."""

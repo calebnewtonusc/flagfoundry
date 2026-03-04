@@ -107,7 +107,7 @@ def print_stats():
         print(f"  {cat:<20} {count:>6,}  {bar}")
 
     if MASTER_JSONL.exists():
-        lines = [l for l in MASTER_JSONL.read_text().splitlines() if l.strip()]
+        lines = [line for line in MASTER_JSONL.read_text().splitlines() if line.strip()]
         print(f"\nMaster dataset: {len(lines):,} triples")
 
         # Quality score distribution
@@ -117,7 +117,7 @@ def print_stats():
                 d = json.loads(line)
                 scores.append(d.get("quality_score", 0))
             except Exception:
-                pass
+                pass  # intentional: skip malformed lines in quality score sample
 
         if scores:
             avg = sum(scores) / len(scores)

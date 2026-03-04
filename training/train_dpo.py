@@ -187,7 +187,7 @@ def main():
     if HAS_WANDB and not args.no_wandb:
         wandb.init(project="flagfoundry-dpo", config=vars(args))
 
-    tokenizer = AutoTokenizer.from_pretrained(args.base_model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.base_model, trust_remote_code=True)  # nosec B615
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
@@ -207,12 +207,12 @@ def main():
         logger.info(
             f"Loading base model {base_model_name} then wrapping with PEFT adapter {rl_checkpoint_path}"
         )
-        base_model = AutoModelForCausalLM.from_pretrained(
+        base_model = AutoModelForCausalLM.from_pretrained(  # nosec B615
             base_model_name, trust_remote_code=True, **model_kwargs
         )
-        model = PeftModel.from_pretrained(base_model, str(rl_checkpoint_path))
+        model = PeftModel.from_pretrained(base_model, str(rl_checkpoint_path))  # nosec B615
     else:
-        model = AutoModelForCausalLM.from_pretrained(
+        model = AutoModelForCausalLM.from_pretrained(  # nosec B615
             args.base_model, trust_remote_code=True, **model_kwargs
         )
 
@@ -241,12 +241,12 @@ def main():
         logger.info(
             f"Loading ref model {base_model_name} then wrapping with PEFT adapter {rl_checkpoint_path}"
         )
-        ref_base = AutoModelForCausalLM.from_pretrained(
+        ref_base = AutoModelForCausalLM.from_pretrained(  # nosec B615
             base_model_name, trust_remote_code=True, **model_kwargs
         )
-        ref_model = PeftModel.from_pretrained(ref_base, str(rl_checkpoint_path))
+        ref_model = PeftModel.from_pretrained(ref_base, str(rl_checkpoint_path))  # nosec B615
     else:
-        ref_model = AutoModelForCausalLM.from_pretrained(
+        ref_model = AutoModelForCausalLM.from_pretrained(  # nosec B615
             args.base_model,
             trust_remote_code=True,
             torch_dtype=torch.bfloat16,

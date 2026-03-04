@@ -122,7 +122,7 @@ class PicoCTFDownloader:
                     except json.JSONDecodeError:
                         pass
         except Exception:
-            pass
+            pass  # intentional: fallback scrape is best-effort
         return []
 
 

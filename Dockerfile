@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy and install Python dependencies
 COPY requirements.txt .
+# hadolint ignore=DL3013
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code

@@ -198,7 +198,7 @@ class HTBCrawler:
                 data = resp.json()
                 return data.get("writeup", None)
         except Exception:
-            pass
+            pass  # intentional: walkthrough fetch is best-effort
         return None
 
     def _infer_category_from_tags(self, tags: list) -> str:
