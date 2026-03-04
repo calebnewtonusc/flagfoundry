@@ -21,7 +21,7 @@ echo "=== FlagFoundry Environment Check ==="
 echo ""
 
 echo "Python:"
-check "Python 3.11+" "python3 -c 'import sys; assert sys.version_info >= (3,11)'"
+check "Python 3.11+" "python3 -c 'import sys; sys.exit(0) if sys.version_info >= (3,11) else sys.exit(1)'"
 check "pip installed" "pip --version"
 echo ""
 

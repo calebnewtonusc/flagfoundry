@@ -106,11 +106,17 @@ class PicoCTFDownloader:
                 timeout=10,
             )
             if resp.status_code == 200:
-                # Extract problem data from page HTML / embedded JSON
+                # Extract problem data from page HTML / embedded JSON.
+                # Use raw_decode starting from the matched position to avoid
+                # greedy regex over-capture with nested arrays/objects.
                 import re
-                matches = re.findall(r'"problems"\s*:\s*(\[.*\])', resp.text, re.DOTALL)
-                if matches:
-                    return json.loads(matches[0])
+                m = re.search(r'"problems"\s*:\s*(\[)', resp.text, re.DOTALL)
+                if m:
+                    try:
+                        arr, _ = json.JSONDecoder().raw_decode(resp.text, m.start(1))
+                        return arr
+                    except json.JSONDecodeError:
+                        pass
         except Exception:
             pass
         return []

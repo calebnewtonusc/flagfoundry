@@ -175,7 +175,7 @@ def main():
         save_steps=max(1, steps_per_epoch // 2),
         save_total_limit=3,
         load_best_model_at_end=bool(val_ds),
-        report_to="wandb" if os.environ.get("WANDB_API_KEY") else "none",
+        report_to=["wandb"] if os.environ.get("WANDB_API_KEY") else [],
         run_name=f"flagfoundry-sft",
         dataloader_num_workers=4,
         remove_unused_columns=False,

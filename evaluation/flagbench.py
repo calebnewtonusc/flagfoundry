@@ -213,13 +213,14 @@ class FlagBench:
         for f in sorted(cat_dir.glob("*.json")):
             try:
                 data = json.loads(f.read_text())
-                # Use f.name (includes extension) as fallback so .elf/.zip/.pcap
-                # challenge files are found correctly when no filename is in the record.
-                file_path = cat_dir / data.get("filename", f.name)
-                if file_path.exists():
-                    data["file_bytes"] = file_path.read_bytes()
-                    # Preserve the original filename from the record (keeps extension)
-                    data.setdefault("filename", f.name)
+                # Only load file_bytes when filename is explicitly specified in the
+                # challenge record.  Using f.name as a fallback causes the .json
+                # metadata file itself to be read as the challenge binary.
+                explicit_filename = data.get("filename")
+                if explicit_filename:
+                    file_path = cat_dir / explicit_filename
+                    if file_path.exists():
+                        data["file_bytes"] = file_path.read_bytes()
                 challenges.append(data)
             except Exception as e:
                 logger.debug(f"Error loading challenge {f}: {e}")

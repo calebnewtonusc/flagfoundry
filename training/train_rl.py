@@ -40,7 +40,7 @@ import torch
 import torch.nn.functional as F
 from datasets import Dataset
 from loguru import logger
-from peft import LoraConfig, TaskType, get_peft_model
+from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -146,6 +146,9 @@ def compute_advantages(score_groups: list[list[float]]) -> list[list[float]]:
         # FF-2 FIX: Use sample std (divide by N-1) instead of population std (divide by N)
         # to match TRL/OpenAI GRPO implementations and avoid systematically inflated advantages
         std = (sum((s - mean) ** 2 for s in group) / max(len(group) - 1, 1)) ** 0.5
+        # FF-9 FIX: Apply minimum std floor to prevent all-zero advantages when all
+        # rewards in a group are identical (e.g. all zeros on an early training step).
+        std = max(std, 1e-8)
         if std == 0:
             advantages.append([0.0] * len(group))
             continue
@@ -273,9 +276,24 @@ def main():
     tokenizer.pad_token = tokenizer.eos_token
 
     model_kwargs = dict(torch_dtype=torch.bfloat16, device_map=None)
-    model = AutoModelForCausalLM.from_pretrained(
-        args.base_model, trust_remote_code=True, **model_kwargs
-    )
+    # Check if the SFT checkpoint is PEFT-only (has adapter_config.json). If so,
+    # load the base model from the path stored in adapter_config.json, then wrap
+    # with PeftModel rather than loading the checkpoint directly with
+    # AutoModelForCausalLM (which would fail for adapter-only directories).
+    sft_checkpoint_path = Path(args.base_model)
+    sft_adapter_config = sft_checkpoint_path / "adapter_config.json"
+    if sft_adapter_config.exists():
+        sft_adapter_cfg = json.loads(sft_adapter_config.read_text())
+        sft_base_model_name = sft_adapter_cfg.get("base_model_name_or_path", str(sft_checkpoint_path))
+        logger.info(f"SFT checkpoint is PEFT-only. Loading base {sft_base_model_name} + adapter {sft_checkpoint_path}")
+        base_for_sft = AutoModelForCausalLM.from_pretrained(
+            sft_base_model_name, trust_remote_code=True, **model_kwargs
+        )
+        model = PeftModel.from_pretrained(base_for_sft, str(sft_checkpoint_path))
+    else:
+        model = AutoModelForCausalLM.from_pretrained(
+            args.base_model, trust_remote_code=True, **model_kwargs
+        )
     model.enable_input_require_grads()
 
     lora_cfg = LoraConfig(
@@ -290,10 +308,10 @@ def main():
     model = get_peft_model(model, lora_cfg)
     model = model.to(device)
 
-    # Load ref_model with device_map="auto" so it lives on GPU throughout training.
-    # Moving it to CPU and back to GPU every step causes expensive PCIe transfers.
+    # Use device_map=None for ref_model for DeepSpeed ZeRO-3 compatibility;
+    # ZeRO-3 manages device placement itself and conflicts with device_map="auto".
     ref_model = AutoModelForCausalLM.from_pretrained(
-        args.base_model, trust_remote_code=True, torch_dtype=torch.bfloat16, device_map="auto"
+        args.base_model, trust_remote_code=True, torch_dtype=torch.bfloat16, device_map=None
     )
     ref_model.eval()
     for p in ref_model.parameters():

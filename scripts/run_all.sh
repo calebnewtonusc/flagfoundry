@@ -104,7 +104,7 @@ if [ "$FROM_STAGE" -le 3 ]; then
     CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17 \
     deepspeed --num_gpus=18 training/train.py \
         --deepspeed training/configs/deepspeed_zero3.json \
-        --model Qwen/Qwen2.5-7B-Coder-Instruct \
+        --model Qwen/Qwen2.5-Coder-7B-Instruct \
         --data-dir data/train \
         --output-dir checkpoints/flagfoundry-sft \
         --epochs 3

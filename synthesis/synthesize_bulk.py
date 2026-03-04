@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import asyncio
 import json
 import os
+import random
 import time
 from typing import Any
 
@@ -223,7 +224,8 @@ class SynthesisPipeline:
                     data = await resp.json()
                     return data["content"][0]["text"]
                 elif resp.status == 429:
-                    backoff = 30 * (2 ** attempt)  # exponential backoff: 30s, 60s, 120s
+                    # Exponential backoff with jitter to avoid thundering herd on 429 errors
+                    backoff = 30 * (2 ** attempt) + random.uniform(0, 10)
                     await asyncio.sleep(backoff)
                     continue  # retry after backoff
                 else:

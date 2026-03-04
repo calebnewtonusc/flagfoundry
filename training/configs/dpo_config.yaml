@@ -20,6 +20,8 @@ dpo:
 logging:
   logging_steps: 10
   save_steps: 100
+  eval_strategy: "steps"
+  eval_steps: 100
   run_name: "flagfoundry-dpo-v1"
 
 data:

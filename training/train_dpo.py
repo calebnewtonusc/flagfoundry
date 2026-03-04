@@ -31,7 +31,7 @@ from pathlib import Path
 
 import torch
 from loguru import logger
-from peft import LoraConfig, TaskType, get_peft_model
+from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -169,8 +169,25 @@ def main():
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "right"
 
-    model_kwargs = dict(torch_dtype=torch.bfloat16, device_map="auto")
-    model = AutoModelForCausalLM.from_pretrained(args.base_model, trust_remote_code=True, **model_kwargs)
+    # Check if the checkpoint is a PEFT adapter (has adapter_config.json) or a full model.
+    # For PEFT-only checkpoints, read the base model name from adapter_config.json, load
+    # the base model, then wrap with PeftModel.  Use device_map=None for DeepSpeed ZeRO-3
+    # compatibility (ZeRO-3 manages device placement itself).
+    rl_checkpoint_path = Path(args.base_model)
+    adapter_config_path = rl_checkpoint_path / "adapter_config.json"
+    model_kwargs = dict(torch_dtype=torch.bfloat16, device_map=None)
+
+    if adapter_config_path.exists():
+        adapter_cfg = json.loads(adapter_config_path.read_text())
+        base_model_name = adapter_cfg.get("base_model_name_or_path", str(rl_checkpoint_path))
+        logger.info(f"Loading base model {base_model_name} then wrapping with PEFT adapter {rl_checkpoint_path}")
+        base_model = AutoModelForCausalLM.from_pretrained(
+            base_model_name, trust_remote_code=True, **model_kwargs
+        )
+        model = PeftModel.from_pretrained(base_model, str(rl_checkpoint_path))
+    else:
+        model = AutoModelForCausalLM.from_pretrained(args.base_model, trust_remote_code=True, **model_kwargs)
+
     model.enable_input_require_grads()
 
     lora_cfg = LoraConfig(
@@ -183,10 +200,17 @@ def main():
     model = get_peft_model(model, lora_cfg)
     model.print_trainable_parameters()
 
-    ref_model = AutoModelForCausalLM.from_pretrained(
-        args.base_model, trust_remote_code=True,
-        torch_dtype=torch.bfloat16, device_map="auto"
-    )
+    if adapter_config_path.exists():
+        logger.info(f"Loading ref model {base_model_name} then wrapping with PEFT adapter {rl_checkpoint_path}")
+        ref_base = AutoModelForCausalLM.from_pretrained(
+            base_model_name, trust_remote_code=True, **model_kwargs
+        )
+        ref_model = PeftModel.from_pretrained(ref_base, str(rl_checkpoint_path))
+    else:
+        ref_model = AutoModelForCausalLM.from_pretrained(
+            args.base_model, trust_remote_code=True,
+            torch_dtype=torch.bfloat16, device_map=None
+        )
     ref_model.eval()
     for p in ref_model.parameters():
         p.requires_grad_(False)
@@ -224,7 +248,7 @@ def main():
         save_total_limit=3,
         load_best_model_at_end=True,
         metric_for_best_model="eval_rewards/margins",
-        report_to="none",
+        report_to=[],
         deepspeed=args.deepspeed,
         beta=args.beta,
         max_length=args.max_length,
