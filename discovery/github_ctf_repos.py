@@ -23,7 +23,6 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import json
 import os
@@ -32,7 +31,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-import aiohttp
 import requests
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -121,33 +119,99 @@ WRITEUP_FILE_PATTERNS: list[str] = [
 # CTF challenge categories / vulnerability types
 CHALLENGE_CATEGORIES: dict[str, list[str]] = {
     "pwn": [
-        "buffer overflow", "stack overflow", "heap overflow", "use-after-free",
-        "format string", "ret2libc", "rop chain", "shellcode", "pwntools",
-        "arbitrary write", "arbitrary read", "tcache", "fastbin", "off-by-one",
+        "buffer overflow",
+        "stack overflow",
+        "heap overflow",
+        "use-after-free",
+        "format string",
+        "ret2libc",
+        "rop chain",
+        "shellcode",
+        "pwntools",
+        "arbitrary write",
+        "arbitrary read",
+        "tcache",
+        "fastbin",
+        "off-by-one",
     ],
     "web": [
-        "sql injection", "xss", "csrf", "ssrf", "xxe", "path traversal",
-        "command injection", "deserialization", "jwt", "oauth", "graphql",
-        "race condition", "prototype pollution", "template injection",
+        "sql injection",
+        "xss",
+        "csrf",
+        "ssrf",
+        "xxe",
+        "path traversal",
+        "command injection",
+        "deserialization",
+        "jwt",
+        "oauth",
+        "graphql",
+        "race condition",
+        "prototype pollution",
+        "template injection",
     ],
     "crypto": [
-        "rsa", "aes", "des", "ecc", "diffie-hellman", "xor", "padding oracle",
-        "bit flipping", "cbc", "ctr", "ecb", "sha", "md5", "hash extension",
-        "lcg", "prng", "lattice", "coppersmith", "bleichenbacher",
+        "rsa",
+        "aes",
+        "des",
+        "ecc",
+        "diffie-hellman",
+        "xor",
+        "padding oracle",
+        "bit flipping",
+        "cbc",
+        "ctr",
+        "ecb",
+        "sha",
+        "md5",
+        "hash extension",
+        "lcg",
+        "prng",
+        "lattice",
+        "coppersmith",
+        "bleichenbacher",
     ],
     "rev": [
-        "reverse engineering", "decompile", "ghidra", "ida", "radare2",
-        "angr", "z3", "anti-debug", "obfuscation", "packing", "upx",
-        "vm", "bytecode", "wasm",
+        "reverse engineering",
+        "decompile",
+        "ghidra",
+        "ida",
+        "radare2",
+        "angr",
+        "z3",
+        "anti-debug",
+        "obfuscation",
+        "packing",
+        "upx",
+        "vm",
+        "bytecode",
+        "wasm",
     ],
     "forensics": [
-        "steganography", "stego", "pcap", "wireshark", "memory forensics",
-        "volatility", "disk image", "file carving", "metadata", "exif",
-        "binwalk", "strings",
+        "steganography",
+        "stego",
+        "pcap",
+        "wireshark",
+        "memory forensics",
+        "volatility",
+        "disk image",
+        "file carving",
+        "metadata",
+        "exif",
+        "binwalk",
+        "strings",
     ],
     "misc": [
-        "jail escape", "pyjail", "sandbox escape", "osint", "networking",
-        "blockchain", "smart contract", "solidity", "base64", "encoding",
+        "jail escape",
+        "pyjail",
+        "sandbox escape",
+        "osint",
+        "networking",
+        "blockchain",
+        "smart contract",
+        "solidity",
+        "base64",
+        "encoding",
     ],
 }
 
@@ -165,7 +229,11 @@ def _classify_challenge(text: str) -> dict[str, Any]:
         if matches:
             found_categories[cat] = matches
 
-    primary_category = max(found_categories, key=lambda k: len(found_categories[k])) if found_categories else "misc"
+    primary_category = (
+        max(found_categories, key=lambda k: len(found_categories[k]))
+        if found_categories
+        else "misc"
+    )
 
     # Difficulty heuristics
     difficulty_indicators: list[str] = []
@@ -210,7 +278,9 @@ def _extract_exploit_code(text: str) -> list[str]:
     python_fences = re.findall(r"```(?:python|py)\s*([\s\S]*?)```", text)
     code_blocks.extend([b.strip() for b in python_fences if len(b.strip()) > 50])
     # Generic code fences that look like pwntools
-    generic_fences = re.findall(r"```\s*(from pwn|import pwn|p = remote|io = remote[\s\S]*?)```", text)
+    generic_fences = re.findall(
+        r"```\s*(from pwn|import pwn|p = remote|io = remote[\s\S]*?)```", text
+    )
     code_blocks.extend([b.strip() for b in generic_fences if len(b.strip()) > 50])
     return code_blocks[:5]
 
@@ -391,16 +461,23 @@ class GitHubCTFCrawler:
         repos_path = self.output_dir / "repos.jsonl"
         with repos_path.open("w") as fh:
             for r in repos:
-                fh.write(json.dumps({
-                    "full_name": r.get("full_name", ""),
-                    "name": r.get("name", ""),
-                    "owner": r.get("owner", {}).get("login", "") if isinstance(r.get("owner"), dict) else "",
-                    "stars": r.get("stargazers_count", 0),
-                    "description": r.get("description", ""),
-                    "topics": r.get("topics", []),
-                    "url": r.get("html_url", ""),
-                    "default_branch": r.get("default_branch", "HEAD"),
-                }) + "\n")
+                fh.write(
+                    json.dumps(
+                        {
+                            "full_name": r.get("full_name", ""),
+                            "name": r.get("name", ""),
+                            "owner": r.get("owner", {}).get("login", "")
+                            if isinstance(r.get("owner"), dict)
+                            else "",
+                            "stars": r.get("stargazers_count", 0),
+                            "description": r.get("description", ""),
+                            "topics": r.get("topics", []),
+                            "url": r.get("html_url", ""),
+                            "default_branch": r.get("default_branch", "HEAD"),
+                        }
+                    )
+                    + "\n"
+                )
 
         logger.info(f"Total repos: {len(repos)}")
 
@@ -488,7 +565,8 @@ class GitHubCTFCrawler:
             return []
 
         writeup_files = [
-            item["path"] for item in tree
+            item["path"]
+            for item in tree
             if item.get("type") == "blob" and _is_writeup_file(item.get("path", ""))
         ][:max_files]
 
@@ -511,7 +589,9 @@ class GitHubCTFCrawler:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Crawl GitHub for CTF writeup repositories")
+    parser = argparse.ArgumentParser(
+        description="Crawl GitHub for CTF writeup repositories"
+    )
     parser.add_argument("--output", default="data/raw/github_ctf")
     parser.add_argument("--max-repos", type=int, default=5000)
     parser.add_argument("--max-files-per-repo", type=int, default=50)

@@ -12,7 +12,6 @@ Run: uvicorn deploy.api_server:app --host 0.0.0.0 --port 8080
 """
 
 import asyncio
-import json
 import os
 import time
 from typing import Optional
@@ -25,7 +24,9 @@ app = FastAPI(title="FlagFoundry API", version="1.0.0")
 
 # FF-23 FIX: Replace wildcard CORS with env-configurable allowed origins.
 # Default to localhost only; set ALLOWED_ORIGINS env var (comma-separated) for production.
-_cors_origins_raw = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080")
+_cors_origins_raw = os.environ.get(
+    "ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080"
+)
 _cors_origins = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
@@ -43,6 +44,7 @@ def _load_orchestrator_sync():
     global _orchestrator
     if _orchestrator is None:
         from agents.orchestrator_agent import OrchestratorAgent
+
         _orchestrator = OrchestratorAgent(model_path=MODEL_PATH)
     return _orchestrator
 
@@ -80,6 +82,7 @@ async def health():
 async def classify(req: ClassifyRequest):
     """Classify a CTF challenge into a category."""
     from core.challenge_classifier import ChallengeClassifier
+
     classifier = ChallengeClassifier()
     result = classifier.classify(description=req.description, filename=req.filename)
     return {
@@ -134,7 +137,11 @@ async def hint(req: HintRequest):
     }
 
     hint_text = hint_levels.get(req.hint_level, hint_levels[1])
-    return {"hint": hint_text, "category": classification.category, "level": req.hint_level}
+    return {
+        "hint": hint_text,
+        "category": classification.category,
+        "level": req.hint_level,
+    }
 
 
 @app.websocket("/v1/stream")
@@ -147,31 +154,44 @@ async def stream_solve(websocket: WebSocket):
         description = data.get("description", "")
         category = data.get("category")
 
-        await websocket.send_json({"type": "status", "message": "Classifying challenge..."})
+        await websocket.send_json(
+            {"type": "status", "message": "Classifying challenge..."}
+        )
 
         from core.challenge_classifier import ChallengeClassifier
+
         classifier = ChallengeClassifier()
         classification = classifier.classify(description)
 
-        await websocket.send_json({
-            "type": "classification",
-            "category": classification.category,
-            "confidence": classification.confidence,
-        })
+        await websocket.send_json(
+            {
+                "type": "classification",
+                "category": classification.category,
+                "confidence": classification.confidence,
+            }
+        )
 
-        await websocket.send_json({"type": "status", "message": "Generating exploit..."})
+        await websocket.send_json(
+            {"type": "status", "message": "Generating exploit..."}
+        )
 
         orchestrator = await get_orchestrator()
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            lambda: orchestrator.solve(description=description, category_override=category),
+            lambda: orchestrator.solve(
+                description=description, category_override=category
+            ),
         )
 
         for i, step in enumerate(result.get("reasoning", [])):
-            await websocket.send_json({"type": "reasoning", "step": i + 1, "text": step})
+            await websocket.send_json(
+                {"type": "reasoning", "step": i + 1, "text": step}
+            )
 
-        await websocket.send_json({"type": "exploit", "code": result.get("exploit", "")})
+        await websocket.send_json(
+            {"type": "exploit", "code": result.get("exploit", "")}
+        )
         await websocket.send_json({"type": "complete", "flag": result.get("flag")})
 
     except Exception as e:
@@ -196,4 +216,5 @@ def _get_tool_hint(category: str, vuln_class: Optional[str]) -> str:
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8080, log_level="info")

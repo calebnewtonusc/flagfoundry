@@ -41,13 +41,13 @@ BENCHMARK_DIR = Path(__file__).parent / "challenges"
 RESULTS_DIR = Path(__file__).parents[1] / "results"
 
 CATEGORY_TARGETS = {
-    "web":      {"count": 100, "target_solve_rate": 0.75},
-    "pwn":      {"count": 100, "target_solve_rate": 0.55},
-    "crypto":   {"count": 100, "target_solve_rate": 0.80},
+    "web": {"count": 100, "target_solve_rate": 0.75},
+    "pwn": {"count": 100, "target_solve_rate": 0.55},
+    "crypto": {"count": 100, "target_solve_rate": 0.80},
     "forensics": {"count": 75, "target_solve_rate": 0.70},
-    "rev":      {"count": 75,  "target_solve_rate": 0.60},
-    "osint":    {"count": 25,  "target_solve_rate": 0.60},
-    "steg":     {"count": 25,  "target_solve_rate": 0.65},
+    "rev": {"count": 75, "target_solve_rate": 0.60},
+    "osint": {"count": 25, "target_solve_rate": 0.60},
+    "steg": {"count": 25, "target_solve_rate": 0.65},
 }
 
 
@@ -81,12 +81,16 @@ class FlagBench:
         if self._orchestrator is not None:
             return
         from agents.orchestrator_agent import OrchestratorAgent
-        self._orchestrator = OrchestratorAgent(model_path=self.model_path, device=self.device)
+
+        self._orchestrator = OrchestratorAgent(
+            model_path=self.model_path, device=self.device
+        )
 
     def _load_sandbox(self):
         if self._sandbox is not None:
             return
         from core.sandbox_harness import SandboxHarness
+
         self._sandbox = SandboxHarness(timeout=self.timeout)
 
     def run(
@@ -132,7 +136,7 @@ class FlagBench:
         failures = []
 
         for i, challenge in enumerate(challenges):
-            logger.debug(f"  [{i+1}/{total}] {challenge.get('title', 'unknown')}")
+            logger.debug(f"  [{i + 1}/{total}] {challenge.get('title', 'unknown')}")
             start = time.time()
 
             try:
@@ -167,16 +171,20 @@ class FlagBench:
                     solved += 1
                     logger.debug(f"    ✓ Flag captured in {elapsed:.1f}s")
                 else:
-                    failures.append({
-                        "challenge_id": challenge["id"],
-                        "title": challenge.get("title"),
-                        "error": sandbox_result.error,
-                    })
+                    failures.append(
+                        {
+                            "challenge_id": challenge["id"],
+                            "title": challenge.get("title"),
+                            "error": sandbox_result.error,
+                        }
+                    )
                     logger.debug(f"    ✗ Not solved ({elapsed:.1f}s)")
 
             except _SolveTimeout as e:
                 logger.warning(f"    Timeout on challenge {challenge.get('id')}: {e}")
-                failures.append({"challenge_id": challenge.get("id"), "error": "timeout"})
+                failures.append(
+                    {"challenge_id": challenge.get("id"), "error": "timeout"}
+                )
                 times.append(time.time() - start)
             except Exception as e:
                 logger.warning(f"    Error on challenge {challenge.get('id')}: {e}")
@@ -231,7 +239,9 @@ class FlagBench:
         """Compute overall benchmark statistics."""
         total = sum(r["total"] for r in all_results.values())
         solved = sum(r["solved"] for r in all_results.values())
-        categories_passing = sum(1 for r in all_results.values() if r.get("meets_target"))
+        categories_passing = sum(
+            1 for r in all_results.values() if r.get("meets_target")
+        )
 
         return {
             "total_challenges": total,
@@ -279,12 +289,17 @@ class FlagBench:
         """Save results to JSON file."""
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         out_path = RESULTS_DIR / f"flagbench_{int(time.time())}.json"
-        out_path.write_text(json.dumps({
-            "model": self.model_path,
-            "timestamp": time.time(),
-            "categories": all_results,
-            "overall": overall,
-        }, indent=2))
+        out_path.write_text(
+            json.dumps(
+                {
+                    "model": self.model_path,
+                    "timestamp": time.time(),
+                    "categories": all_results,
+                    "overall": overall,
+                },
+                indent=2,
+            )
+        )
         logger.info(f"Results saved to {out_path}")
 
 
@@ -292,11 +307,16 @@ def main():
     parser = argparse.ArgumentParser(description="FlagBench — CTF AI evaluation suite")
     parser.add_argument("--model", required=True, help="Model path or HF model ID")
     parser.add_argument("--all", action="store_true", help="Run all categories")
-    parser.add_argument("--category", nargs="+",
-                        choices=list(CATEGORY_TARGETS.keys()),
-                        help="Specific categories to evaluate")
+    parser.add_argument(
+        "--category",
+        nargs="+",
+        choices=list(CATEGORY_TARGETS.keys()),
+        help="Specific categories to evaluate",
+    )
     parser.add_argument("--limit", type=int, help="Limit challenges per category")
-    parser.add_argument("--timeout", type=int, default=60, help="Exploit timeout (seconds)")
+    parser.add_argument(
+        "--timeout", type=int, default=60, help="Exploit timeout (seconds)"
+    )
     parser.add_argument("--docker-workers", type=int, default=4)
     args = parser.parse_args()
 

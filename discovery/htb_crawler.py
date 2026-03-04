@@ -40,10 +40,12 @@ class HTBCrawler:
             logger.warning("HTB_API_TOKEN not set — HTB crawling will be limited")
 
         self._session = requests.Session()
-        self._session.headers.update({
-            "Authorization": f"Bearer {self.api_token}",
-            "User-Agent": "FlagFoundry Research — flagfoundry@example.com",
-        })
+        self._session.headers.update(
+            {
+                "Authorization": f"Bearer {self.api_token}",
+                "User-Agent": "FlagFoundry Research — flagfoundry@example.com",
+            }
+        )
 
     def crawl_all(self) -> int:
         """Download all accessible HTB machine + challenge writeups."""
@@ -60,7 +62,9 @@ class HTBCrawler:
 
         saved = 0
         for machine in machines:
-            out_path = self.output_dir / f"machine_{machine['id']}_{machine['name']}.json"
+            out_path = (
+                self.output_dir / f"machine_{machine['id']}_{machine['name']}.json"
+            )
             if out_path.exists():
                 continue
 
@@ -83,7 +87,10 @@ class HTBCrawler:
 
         saved = 0
         for challenge in challenges:
-            out_path = self.output_dir / f"challenge_{challenge['id']}_{challenge['name']}.json"
+            out_path = (
+                self.output_dir
+                / f"challenge_{challenge['id']}_{challenge['name']}.json"
+            )
             if out_path.exists():
                 continue
 

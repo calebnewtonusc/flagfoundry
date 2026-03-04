@@ -1,6 +1,5 @@
 """health_check.py - Post-deploy smoke test for FlagFoundry API."""
 
-import json
 import sys
 
 import requests
@@ -34,7 +33,9 @@ def check_api(base_url: str = "http://localhost:8080") -> bool:
             return False
         data = resp.json()
         if data.get("category") != "web":
-            print(f"  [FAIL] /v1/classify: expected category='web', got '{data.get('category')}'")
+            print(
+                f"  [FAIL] /v1/classify: expected category='web', got '{data.get('category')}'"
+            )
             return False
         print(f"  [PASS] /v1/classify → {data.get('category')}")
     except Exception as e:
@@ -69,6 +70,7 @@ def check_api(base_url: str = "http://localhost:8080") -> bool:
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://localhost:8080")
     args = parser.parse_args()

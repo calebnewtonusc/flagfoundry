@@ -56,7 +56,10 @@ class PicoCTFDownloader:
         problems = self._fetch_problems(competition_id)
 
         for problem in problems:
-            out_path = self.output_dir / f"{year}_{problem['id']}_{problem.get('name', 'unknown')[:40]}.json"
+            out_path = (
+                self.output_dir
+                / f"{year}_{problem['id']}_{problem.get('name', 'unknown')[:40]}.json"
+            )
             if out_path.exists():
                 continue
 
@@ -110,6 +113,7 @@ class PicoCTFDownloader:
                 # Use raw_decode starting from the matched position to avoid
                 # greedy regex over-capture with nested arrays/objects.
                 import re
+
                 m = re.search(r'"problems"\s*:\s*(\[)', resp.text, re.DOTALL)
                 if m:
                     try:

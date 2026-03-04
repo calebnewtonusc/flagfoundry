@@ -19,8 +19,6 @@ Usage:
   )
 """
 
-import json
-import os
 import subprocess
 import tempfile
 import time
@@ -35,6 +33,7 @@ from loguru import logger
 @dataclass
 class ExploitResult:
     """Result of running an exploit in the sandbox."""
+
     success: bool
     flag_captured: Optional[str]
     reward_score: float
@@ -81,8 +80,7 @@ class SandboxHarness:
         """Verify Docker is accessible."""
         try:
             result = subprocess.run(
-                ["docker", "info"],
-                capture_output=True, text=True, timeout=5
+                ["docker", "info"], capture_output=True, text=True, timeout=5
             )
             if result.returncode != 0:
                 raise RuntimeError("Docker not accessible")
@@ -118,7 +116,8 @@ class SandboxHarness:
                 flag_captured=None,
                 reward_score=-0.5,
                 error=f"Failed to start challenge container: {challenge_id}",
-                stdout="", stderr="",
+                stdout="",
+                stderr="",
                 execution_time=time.time() - start,
             )
 
@@ -158,17 +157,24 @@ class SandboxHarness:
         try:
             result = subprocess.run(
                 [
-                    "docker", "run",
+                    "docker",
+                    "run",
                     "--rm",
                     "--detach",
-                    "--network", self.network_name,
-                    "--memory", "256m",
-                    "--cpus", "0.5",
+                    "--network",
+                    self.network_name,
+                    "--memory",
+                    "256m",
+                    "--cpus",
+                    "0.5",
                     # FF-10 FIX: Add UUID suffix to avoid container name collision under concurrent workers
-                    "--name", f"challenge_{challenge_id}_{int(time.time())}_{uuid.uuid4().hex[:8]}",
+                    "--name",
+                    f"challenge_{challenge_id}_{int(time.time())}_{uuid.uuid4().hex[:8]}",
                     image,
                 ],
-                capture_output=True, text=True, timeout=15
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
             if result.returncode == 0:
                 container_id = result.stdout.strip()
@@ -203,31 +209,44 @@ class SandboxHarness:
             # Start the runner container detached (no volume mount)
             start_result = subprocess.run(
                 [
-                    "docker", "run",
+                    "docker",
+                    "run",
                     "--rm",
                     "--detach",
-                    "--name", container_name,
-                    "--network", self.network_name,
-                    "--memory", "512m",
-                    "--cpus", "1.0",
-                    "--env", f"CHALLENGE_HOST={challenge_container}",
-                    "--env", "CHALLENGE_PORT=1337",
-                    "--entrypoint", "sleep",
+                    "--name",
+                    container_name,
+                    "--network",
+                    self.network_name,
+                    "--memory",
+                    "512m",
+                    "--cpus",
+                    "1.0",
+                    "--env",
+                    f"CHALLENGE_HOST={challenge_container}",
+                    "--env",
+                    "CHALLENGE_PORT=1337",
+                    "--entrypoint",
+                    "sleep",
                     EXPLOIT_RUNNER_IMAGE,
                     str(self.timeout + 5),
                 ],
-                capture_output=True, text=True, timeout=15,
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
             if start_result.returncode != 0:
                 return subprocess.CompletedProcess(
-                    args=[], returncode=-2,
-                    stdout="", stderr=f"Failed to start runner container: {start_result.stderr}"
+                    args=[],
+                    returncode=-2,
+                    stdout="",
+                    stderr=f"Failed to start runner container: {start_result.stderr}",
                 )
 
             # Copy the exploit script into the running container
             subprocess.run(
                 ["docker", "cp", exploit_path, f"{container_name}:/exploit_run.py"],
-                capture_output=True, timeout=10,
+                capture_output=True,
+                timeout=10,
             )
 
             # Execute the exploit inside the container
@@ -241,28 +260,27 @@ class SandboxHarness:
 
         except subprocess.TimeoutExpired:
             return subprocess.CompletedProcess(
-                args=[], returncode=-1,
-                stdout="", stderr=f"TIMEOUT: exploit exceeded {self.timeout}s"
+                args=[],
+                returncode=-1,
+                stdout="",
+                stderr=f"TIMEOUT: exploit exceeded {self.timeout}s",
             )
         except Exception as e:
             return subprocess.CompletedProcess(
-                args=[], returncode=-2,
-                stdout="", stderr=f"EXECUTION ERROR: {e}"
+                args=[], returncode=-2, stdout="", stderr=f"EXECUTION ERROR: {e}"
             )
         finally:
             Path(exploit_path).unlink(missing_ok=True)
             # Stop the runner container (best-effort)
             subprocess.run(
-                ["docker", "rm", "-f", container_name],
-                capture_output=True, timeout=5
+                ["docker", "rm", "-f", container_name], capture_output=True, timeout=5
             )
 
     def _stop_challenge(self, container_id: str):
         """Stop and remove the challenge container."""
         try:
             subprocess.run(
-                ["docker", "stop", container_id],
-                capture_output=True, timeout=5
+                ["docker", "stop", container_id], capture_output=True, timeout=5
             )
         except Exception:
             pass
@@ -270,6 +288,7 @@ class SandboxHarness:
     def _extract_flag(self, output: str) -> Optional[str]:
         """Extract flag from exploit output using common flag patterns."""
         import re
+
         # Common flag formats
         patterns = [
             r"FLAG\{[^}]+\}",
@@ -309,7 +328,10 @@ class SandboxHarness:
         # FF-9 FIX: Give distinct rewards: syntax errors (-0.5) vs runtime crashes (-0.75)
         if exploit_result.returncode != 0:
             stderr = exploit_result.stderr
-            if any(err in stderr for err in ["SyntaxError", "ImportError", "ModuleNotFoundError"]):
+            if any(
+                err in stderr
+                for err in ["SyntaxError", "ImportError", "ModuleNotFoundError"]
+            ):
                 # Syntax/import error: bad code structure, more forgiving since the logic may be right
                 return -0.5
             # Runtime crash: worse than a syntax error but better than timeout

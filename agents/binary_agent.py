@@ -10,8 +10,6 @@ Uses pwntools for all exploit development.
 import re
 from typing import Optional
 
-from loguru import logger
-
 
 PWN_SYSTEM_PROMPT = """You are an expert binary exploitation researcher and CTF player.
 
@@ -56,13 +54,20 @@ class BinaryExploitAgent:
             return
         from transformers import AutoModelForCausalLM, AutoTokenizer
         import torch
-        self._tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
+
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            self.model_path, trust_remote_code=True
+        )
         self._model = AutoModelForCausalLM.from_pretrained(
-            self.model_path, torch_dtype=torch.bfloat16, device_map=self.device,
+            self.model_path,
+            torch_dtype=torch.bfloat16,
+            device_map=self.device,
             trust_remote_code=True,
         )
 
-    def solve(self, description: str, file_bytes: Optional[bytes], classification) -> dict:
+    def solve(
+        self, description: str, file_bytes: Optional[bytes], classification
+    ) -> dict:
         """Solve a binary exploitation CTF challenge."""
         self._load_model()
 
@@ -77,7 +82,7 @@ class BinaryExploitAgent:
 
 {binary_context}
 
-Vulnerability class hint: {classification.vuln_class or 'unknown — analyze the binary'}
+Vulnerability class hint: {classification.vuln_class or "unknown — analyze the binary"}
 
 Write a complete pwntools exploit. Walk through:
 1. Binary analysis (checksec, file, strings)
@@ -107,7 +112,7 @@ Extract and print the flag."""
         if file_bytes[:4] == b"\x7fELF":
             bits = "64-bit" if file_bytes[4] == 2 else "32-bit"
             machine = file_bytes[18]
-            arch_map = {0x3e: "x86-64", 0x28: "ARM", 0xb7: "AArch64", 0x08: "MIPS"}
+            arch_map = {0x3E: "x86-64", 0x28: "ARM", 0xB7: "AArch64", 0x08: "MIPS"}
             arch = arch_map.get(machine, f"machine=0x{machine:02x}")
 
         return f"""
@@ -119,15 +124,21 @@ Run checksec on the binary and pwntools ELF() to get full protection information
 
     def _generate(self, messages: list[dict], max_new_tokens: int = 2000) -> str:
         import torch
+
         input_ids = self._tokenizer.apply_chat_template(
             messages, tokenize=True, add_generation_prompt=True, return_tensors="pt"
         ).to(self._model.device)
         with torch.no_grad():
             output = self._model.generate(
-                input_ids, max_new_tokens=max_new_tokens, temperature=0.2,
-                do_sample=True, pad_token_id=self._tokenizer.eos_token_id,
+                input_ids,
+                max_new_tokens=max_new_tokens,
+                temperature=0.2,
+                do_sample=True,
+                pad_token_id=self._tokenizer.eos_token_id,
             )
-        return self._tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
+        return self._tokenizer.decode(
+            output[0][input_ids.shape[1] :], skip_special_tokens=True
+        )
 
     def _extract_reasoning(self, text: str) -> list[str]:
         steps = []

@@ -132,6 +132,7 @@ class OrchestratorAgent:
         module_path, class_name = module_class.rsplit(".", 1)
 
         import importlib
+
         try:
             module = importlib.import_module(module_path)
             AgentClass = getattr(module, class_name)
@@ -191,6 +192,7 @@ class FallbackAgent:
         ]
 
         import torch
+
         input_ids = self._tokenizer.apply_chat_template(
             messages, tokenize=True, add_generation_prompt=True, return_tensors="pt"
         ).to(self._model.device)
@@ -205,7 +207,7 @@ class FallbackAgent:
             )
 
         response = self._tokenizer.decode(
-            output[0][input_ids.shape[1]:], skip_special_tokens=True
+            output[0][input_ids.shape[1] :], skip_special_tokens=True
         )
 
         # Parse response into structured format
@@ -217,7 +219,6 @@ class FallbackAgent:
 
     def _extract_code(self, text: str) -> str:
         """Extract code block from response."""
-        import re
         for fence in ("```python", "```bash", "```"):
             if fence in text:
                 start = text.find(fence) + len(fence)
@@ -229,6 +230,7 @@ class FallbackAgent:
     def _extract_flag(self, text: str) -> Optional[str]:
         """Extract flag from response."""
         import re
+
         match = re.search(r"[A-Z0-9_]+\{[^}]+\}", text)
         return match.group(0) if match else None
 

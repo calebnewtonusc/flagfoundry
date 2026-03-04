@@ -47,20 +47,27 @@ class OSINTAgent:
             return
         from transformers import AutoModelForCausalLM, AutoTokenizer
         import torch
-        self._tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
+
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            self.model_path, trust_remote_code=True
+        )
         self._model = AutoModelForCausalLM.from_pretrained(
-            self.model_path, torch_dtype=torch.bfloat16, device_map=self.device,
+            self.model_path,
+            torch_dtype=torch.bfloat16,
+            device_map=self.device,
             trust_remote_code=True,
         )
 
-    def solve(self, description: str, file_bytes: Optional[bytes], classification) -> dict:
+    def solve(
+        self, description: str, file_bytes: Optional[bytes], classification
+    ) -> dict:
         self._load_model()
 
         user_prompt = f"""OSINT CTF Challenge:
 
 {description}
 
-Technique: {classification.vuln_class or 'analyze the target — domain/person/image/social'}
+Technique: {classification.vuln_class or "analyze the target — domain/person/image/social"}
 
 Describe your investigation strategy step by step.
 Write Python automation where applicable.
@@ -81,15 +88,21 @@ The flag should be discoverable from publicly available information."""
 
     def _generate(self, messages: list[dict]) -> str:
         import torch
+
         input_ids = self._tokenizer.apply_chat_template(
             messages, tokenize=True, add_generation_prompt=True, return_tensors="pt"
         ).to(self._model.device)
         with torch.no_grad():
             output = self._model.generate(
-                input_ids, max_new_tokens=1200, temperature=0.4,
-                do_sample=True, pad_token_id=self._tokenizer.eos_token_id,
+                input_ids,
+                max_new_tokens=1200,
+                temperature=0.4,
+                do_sample=True,
+                pad_token_id=self._tokenizer.eos_token_id,
             )
-        return self._tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
+        return self._tokenizer.decode(
+            output[0][input_ids.shape[1] :], skip_special_tokens=True
+        )
 
     def _extract_reasoning(self, text: str) -> list[str]:
         steps = []

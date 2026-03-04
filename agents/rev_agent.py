@@ -27,7 +27,9 @@ class ReverseEngineeringAgent:
     only trigger if this __init__ or solve() raises an unexpected exception.
     """
 
-    def __init__(self, model_path: str = "Qwen/Qwen2.5-Coder-7B-Instruct", device: str = "auto"):
+    def __init__(
+        self, model_path: str = "Qwen/Qwen2.5-Coder-7B-Instruct", device: str = "auto"
+    ):
         self.model_path = model_path
         self.device = device
         logger.warning(

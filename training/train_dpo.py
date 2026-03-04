@@ -22,11 +22,8 @@ Launch (18 GPUs):
 
 import argparse
 import json
-import logging
 import math
-import os
 import random
-import time
 from pathlib import Path
 
 import torch
@@ -36,17 +33,18 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     TrainerCallback,
-    TrainingArguments,
 )
 
 try:
     from trl import DPOConfig, DPOTrainer
+
     HAS_TRL = True
 except ImportError:
     HAS_TRL = False
 
 try:
     import wandb
+
     HAS_WANDB = True
 except ImportError:
     HAS_WANDB = False
@@ -59,8 +57,8 @@ class DPODataset:
 
     SOURCE_FILES = {
         "execution": "data/dpo/execution_pairs.jsonl",
-        "quality":   "data/dpo/quality_pairs.jsonl",
-        "approach":  "data/dpo/approach_pairs.jsonl",
+        "quality": "data/dpo/quality_pairs.jsonl",
+        "approach": "data/dpo/approach_pairs.jsonl",
     }
 
     def __init__(
@@ -84,12 +82,16 @@ class DPODataset:
         n_val = max(1, int(len(self.pairs) * val_split))
         self.val_pairs = self.pairs[:n_val]
         self.train_pairs = self.pairs[n_val:]
-        logger.info(f"DPO total: {len(self.train_pairs):,} train | {len(self.val_pairs):,} val")
+        logger.info(
+            f"DPO total: {len(self.train_pairs):,} train | {len(self.val_pairs):,} val"
+        )
 
     def _load(self, source: str) -> list[dict]:
         path = self.root / self.SOURCE_FILES.get(source, "")
         if not path.exists():
-            logger.warning(f"DPO source not found: {path}. Generate with generate_dpo_pairs.py")
+            logger.warning(
+                f"DPO source not found: {path}. Generate with generate_dpo_pairs.py"
+            )
             return []
         pairs = []
         for line in path.read_text().splitlines():
@@ -105,14 +107,27 @@ class DPODataset:
 
     def to_hf(self):
         from datasets import Dataset
-        train = Dataset.from_list([
-            {"prompt": p["prompt"], "chosen": p["chosen"], "rejected": p["rejected"]}
-            for p in self.train_pairs
-        ])
-        val = Dataset.from_list([
-            {"prompt": p["prompt"], "chosen": p["chosen"], "rejected": p["rejected"]}
-            for p in self.val_pairs
-        ])
+
+        train = Dataset.from_list(
+            [
+                {
+                    "prompt": p["prompt"],
+                    "chosen": p["chosen"],
+                    "rejected": p["rejected"],
+                }
+                for p in self.train_pairs
+            ]
+        )
+        val = Dataset.from_list(
+            [
+                {
+                    "prompt": p["prompt"],
+                    "chosen": p["chosen"],
+                    "rejected": p["rejected"],
+                }
+                for p in self.val_pairs
+            ]
+        )
         return train, val
 
 
@@ -135,16 +150,23 @@ class DPOMetricsCallback(TrainerCallback):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Stage 3: DPO for FlagFoundry explanation quality")
+    parser = argparse.ArgumentParser(
+        description="Stage 3: DPO for FlagFoundry explanation quality"
+    )
     parser.add_argument("--base-model", required=True)
     parser.add_argument("--output-dir", default="checkpoints/flagfoundry-final")
     parser.add_argument("--deepspeed", type=str)
-    parser.add_argument("--data-sources", nargs="+",
-                        default=["execution", "quality", "approach"])
+    parser.add_argument(
+        "--data-sources", nargs="+", default=["execution", "quality", "approach"]
+    )
     parser.add_argument("--beta", type=float, default=0.1)
     parser.add_argument("--max-steps", type=int, default=1000)
-    parser.add_argument("--num-epochs", type=int, default=3,
-                        help="Number of training epochs (default: 3)")
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=3,
+        help="Number of training epochs (default: 3)",
+    )
     parser.add_argument("--batch-size", type=int, default=2)
     parser.add_argument("--grad-accum", type=int, default=8)
     parser.add_argument("--learning-rate", type=float, default=5e-7)
@@ -179,14 +201,20 @@ def main():
 
     if adapter_config_path.exists():
         adapter_cfg = json.loads(adapter_config_path.read_text())
-        base_model_name = adapter_cfg.get("base_model_name_or_path", str(rl_checkpoint_path))
-        logger.info(f"Loading base model {base_model_name} then wrapping with PEFT adapter {rl_checkpoint_path}")
+        base_model_name = adapter_cfg.get(
+            "base_model_name_or_path", str(rl_checkpoint_path)
+        )
+        logger.info(
+            f"Loading base model {base_model_name} then wrapping with PEFT adapter {rl_checkpoint_path}"
+        )
         base_model = AutoModelForCausalLM.from_pretrained(
             base_model_name, trust_remote_code=True, **model_kwargs
         )
         model = PeftModel.from_pretrained(base_model, str(rl_checkpoint_path))
     else:
-        model = AutoModelForCausalLM.from_pretrained(args.base_model, trust_remote_code=True, **model_kwargs)
+        model = AutoModelForCausalLM.from_pretrained(
+            args.base_model, trust_remote_code=True, **model_kwargs
+        )
 
     model.enable_input_require_grads()
 
@@ -194,22 +222,35 @@ def main():
         task_type=TaskType.CAUSAL_LM,
         r=args.lora_r,
         lora_alpha=args.lora_r * 2,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-        lora_dropout=0.05, bias="none",
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
+        lora_dropout=0.05,
+        bias="none",
     )
     model = get_peft_model(model, lora_cfg)
     model.print_trainable_parameters()
 
     if adapter_config_path.exists():
-        logger.info(f"Loading ref model {base_model_name} then wrapping with PEFT adapter {rl_checkpoint_path}")
+        logger.info(
+            f"Loading ref model {base_model_name} then wrapping with PEFT adapter {rl_checkpoint_path}"
+        )
         ref_base = AutoModelForCausalLM.from_pretrained(
             base_model_name, trust_remote_code=True, **model_kwargs
         )
         ref_model = PeftModel.from_pretrained(ref_base, str(rl_checkpoint_path))
     else:
         ref_model = AutoModelForCausalLM.from_pretrained(
-            args.base_model, trust_remote_code=True,
-            torch_dtype=torch.bfloat16, device_map=None
+            args.base_model,
+            trust_remote_code=True,
+            torch_dtype=torch.bfloat16,
+            device_map=None,
         )
     ref_model.eval()
     for p in ref_model.parameters():
@@ -225,7 +266,9 @@ def main():
     n_gpus = torch.cuda.device_count() or 1
     effective_batch = args.batch_size * args.grad_accum * n_gpus
     # FF-13 FIX: Use args.num_epochs instead of hardcoded * 3
-    total_steps = min(args.max_steps, math.ceil(len(train_ds) / effective_batch) * args.num_epochs)
+    total_steps = min(
+        args.max_steps, math.ceil(len(train_ds) / effective_batch) * args.num_epochs
+    )
 
     # Always use DPOConfig — DPOTrainer requires it and crashes with bare TrainingArguments.
     # metric_for_best_model must be the eval-prefixed key that DPOTrainer actually logs.

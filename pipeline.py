@@ -29,6 +29,7 @@ def run_collect(sources: list[str] | None = None, workers: int = 30):
 
     if "ctftime" in sources:
         from discovery.ctftime_crawler import CTFtimeCrawler
+
         crawler = CTFtimeCrawler(output_dir=RAW_DIR / "ctftime", workers=workers)
         n = crawler.crawl_all(years=range(2010, 2026))
         print(f"CTFtime: {n:,} writeups collected")
@@ -36,6 +37,7 @@ def run_collect(sources: list[str] | None = None, workers: int = 30):
 
     if "htb" in sources:
         from discovery.htb_crawler import HTBCrawler
+
         crawler = HTBCrawler(output_dir=RAW_DIR / "htb")
         n = crawler.crawl_all()
         print(f"HackTheBox: {n:,} writeups collected")
@@ -43,6 +45,7 @@ def run_collect(sources: list[str] | None = None, workers: int = 30):
 
     if "picoctf" in sources:
         from discovery.picoctf_downloader import PicoCTFDownloader
+
         dl = PicoCTFDownloader(output_dir=RAW_DIR / "picoctf")
         n = dl.download_all()
         print(f"picoCTF: {n:,} problems downloaded")
@@ -50,6 +53,7 @@ def run_collect(sources: list[str] | None = None, workers: int = 30):
 
     if "defcon" in sources:
         from discovery.defcon_crawler import DefconCrawler
+
         crawler = DefconCrawler(output_dir=RAW_DIR / "defcon")
         n = crawler.crawl_all()
         print(f"DEFCON/HITCON: {n:,} challenges collected")
@@ -57,6 +61,7 @@ def run_collect(sources: list[str] | None = None, workers: int = 30):
 
     if "cve_poc" in sources:
         from discovery.github_poc_crawler import GitHubPoCCrawler
+
         crawler = GitHubPoCCrawler(output_dir=RAW_DIR / "cve_poc", limit=10000)
         n = crawler.crawl()
         print(f"CVE PoC: {n:,} exploits collected")
@@ -137,27 +142,40 @@ def solve_interactive():
     result = agent.solve(description=description, file_bytes=file_content)
 
     print(f"\nCategory: {result['category']}")
-    print(f"\nReasoning:")
+    print("\nReasoning:")
     for i, step in enumerate(result["reasoning"], 1):
         print(f"  {i}. {step}")
-    print(f"\nExploit:")
+    print("\nExploit:")
     print(result["exploit"])
     print(f"\nFlag: {result.get('flag', 'Not captured — check exploit output')}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="FlagFoundry dataset pipeline")
-    parser.add_argument("--collect-only", action="store_true", help="Only collect writeups")
+    parser.add_argument(
+        "--collect-only", action="store_true", help="Only collect writeups"
+    )
     parser.add_argument("--synth-only", action="store_true", help="Only run synthesis")
     parser.add_argument("--stats", action="store_true", help="Print dataset statistics")
-    parser.add_argument("--solve", action="store_true", help="Interactive challenge solver")
-    parser.add_argument("--sources", nargs="+",
-                        choices=["ctftime", "htb", "picoctf", "defcon", "cve_poc"],
-                        help="Data sources to collect (default: all)")
-    parser.add_argument("--backend", default="claude", choices=["claude", "vllm"],
-                        help="Synthesis backend")
+    parser.add_argument(
+        "--solve", action="store_true", help="Interactive challenge solver"
+    )
+    parser.add_argument(
+        "--sources",
+        nargs="+",
+        choices=["ctftime", "htb", "picoctf", "defcon", "cve_poc"],
+        help="Data sources to collect (default: all)",
+    )
+    parser.add_argument(
+        "--backend",
+        default="claude",
+        choices=["claude", "vllm"],
+        help="Synthesis backend",
+    )
     parser.add_argument("--vllm-urls", nargs="+", help="vLLM server URLs")
-    parser.add_argument("--workers", type=int, default=30, help="Parallel collection workers")
+    parser.add_argument(
+        "--workers", type=int, default=30, help="Parallel collection workers"
+    )
     args = parser.parse_args()
 
     if args.stats:

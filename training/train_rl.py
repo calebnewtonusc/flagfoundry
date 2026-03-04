@@ -28,28 +28,22 @@ Launch (18 GPUs training + CPU Docker workers):
 
 import argparse
 import json
-import logging
-import math
-import os
-import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
 
 import torch
 import torch.nn.functional as F
-from datasets import Dataset
 from loguru import logger
 from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
-    GenerationConfig,
     get_cosine_schedule_with_warmup,
 )
 
 try:
     import wandb
+
     HAS_WANDB = True
 except ImportError:
     HAS_WANDB = False
@@ -59,6 +53,7 @@ DATA_DIR = ROOT / "data" / "train"
 
 
 # ─── Flag Capture Reward Function ─────────────────────────────────────────────
+
 
 class FlagCaptureReward:
     """
@@ -82,10 +77,9 @@ class FlagCaptureReward:
 
     def _verify_docker(self):
         import subprocess
+
         try:
-            result = subprocess.run(
-                ["docker", "info"], capture_output=True, timeout=5
-            )
+            result = subprocess.run(["docker", "info"], capture_output=True, timeout=5)
             if result.returncode != 0:
                 logger.warning("Docker not accessible — using simulated rewards")
                 self._docker_available = False
@@ -107,6 +101,7 @@ class FlagCaptureReward:
             return self._simulated_rewards(exploits)
 
         from core.sandbox_harness import SandboxHarness
+
         harness = SandboxHarness(timeout=self.timeout)
         return harness.score_batch(exploits, challenge_id, expected_flag)
 
@@ -134,6 +129,7 @@ class FlagCaptureReward:
 
 
 # ─── GRPO components (mirrors Nalana's implementation) ────────────────────────
+
 
 def compute_advantages(score_groups: list[list[float]]) -> list[list[float]]:
     """Compute group-relative advantages for GRPO."""
@@ -223,12 +219,14 @@ def load_challenge_prompts(data_dir: Path, limit: Optional[int] = None) -> list[
         convs = record.get("conversations", [])
         human_turns = [c for c in convs if c.get("from") == "human"]
         if human_turns:
-            prompts.append({
-                "prompt": human_turns[0]["value"],
-                "challenge_id": record.get("challenge_id", "unknown"),
-                "expected_flag": record.get("flag", "FLAG{unknown}"),
-                "conversations": convs,
-            })
+            prompts.append(
+                {
+                    "prompt": human_turns[0]["value"],
+                    "challenge_id": record.get("challenge_id", "unknown"),
+                    "expected_flag": record.get("flag", "FLAG{unknown}"),
+                    "conversations": convs,
+                }
+            )
 
     if limit:
         prompts = prompts[:limit]
@@ -256,8 +254,12 @@ def main():
     parser.add_argument("--save-steps", type=int, default=100)
     parser.add_argument("--warmup-steps", type=int, default=50)
     parser.add_argument("--grad-clip", type=float, default=1.0)
-    parser.add_argument("--grad-accum-steps", type=int, default=4,
-                        help="Gradient accumulation steps to reduce OOM risk (FF-17)")
+    parser.add_argument(
+        "--grad-accum-steps",
+        type=int,
+        default=4,
+        help="Gradient accumulation steps to reduce OOM risk (FF-17)",
+    )
     parser.add_argument("--no-wandb", action="store_true")
     parser.add_argument("--num-prompts", type=int, default=None)
     args = parser.parse_args()
@@ -284,8 +286,12 @@ def main():
     sft_adapter_config = sft_checkpoint_path / "adapter_config.json"
     if sft_adapter_config.exists():
         sft_adapter_cfg = json.loads(sft_adapter_config.read_text())
-        sft_base_model_name = sft_adapter_cfg.get("base_model_name_or_path", str(sft_checkpoint_path))
-        logger.info(f"SFT checkpoint is PEFT-only. Loading base {sft_base_model_name} + adapter {sft_checkpoint_path}")
+        sft_base_model_name = sft_adapter_cfg.get(
+            "base_model_name_or_path", str(sft_checkpoint_path)
+        )
+        logger.info(
+            f"SFT checkpoint is PEFT-only. Loading base {sft_base_model_name} + adapter {sft_checkpoint_path}"
+        )
         base_for_sft = AutoModelForCausalLM.from_pretrained(
             sft_base_model_name, trust_remote_code=True, **model_kwargs
         )
@@ -300,8 +306,15 @@ def main():
         task_type=TaskType.CAUSAL_LM,
         r=args.lora_r,
         lora_alpha=args.lora_r * 2,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                         "gate_proj", "up_proj", "down_proj"],
+        target_modules=[
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ],
         lora_dropout=0.0,
         bias="none",
     )
@@ -311,24 +324,33 @@ def main():
     # Use device_map=None for ref_model for DeepSpeed ZeRO-3 compatibility;
     # ZeRO-3 manages device placement itself and conflicts with device_map="auto".
     ref_model = AutoModelForCausalLM.from_pretrained(
-        args.base_model, trust_remote_code=True, torch_dtype=torch.bfloat16, device_map=None
+        args.base_model,
+        trust_remote_code=True,
+        torch_dtype=torch.bfloat16,
+        device_map=None,
     )
     ref_model.eval()
     for p in ref_model.parameters():
         p.requires_grad_(False)
 
-    reward_fn = FlagCaptureReward(workers=args.docker_workers, timeout=args.docker_timeout)
+    reward_fn = FlagCaptureReward(
+        workers=args.docker_workers, timeout=args.docker_timeout
+    )
     prompts = load_challenge_prompts(Path(args.data_dir), limit=args.num_prompts)
 
     optimizer = torch.optim.AdamW(
         [p for p in model.parameters() if p.requires_grad],
-        lr=args.learning_rate, weight_decay=0.0, betas=(0.9, 0.95),
+        lr=args.learning_rate,
+        weight_decay=0.0,
+        betas=(0.9, 0.95),
     )
     scheduler = get_cosine_schedule_with_warmup(
         optimizer, num_warmup_steps=args.warmup_steps, num_training_steps=args.max_steps
     )
 
-    logger.info(f"Starting GRPO RL | {len(prompts):,} prompts | {args.max_steps:,} steps | grad_accum={args.grad_accum_steps}")
+    logger.info(
+        f"Starting GRPO RL | {len(prompts):,} prompts | {args.max_steps:,} steps | grad_accum={args.grad_accum_steps}"
+    )
     global_step = 0
     prompt_idx = 0
     # FF-17 FIX: Track micro-steps for gradient accumulation to reduce OOM risk
@@ -347,10 +369,13 @@ def main():
         for p in batch:
             prompt_text = tokenizer.apply_chat_template(
                 [{"role": "user", "content": p["prompt"]}],
-                tokenize=False, add_generation_prompt=True
+                tokenize=False,
+                add_generation_prompt=True,
             )
             # FF-6 FIX: Repeat both input_ids AND attention_mask to avoid attending to padding
-            enc = tokenizer(prompt_text, return_tensors="pt", truncation=True, max_length=1024)
+            enc = tokenizer(
+                prompt_text, return_tensors="pt", truncation=True, max_length=1024
+            )
             input_ids = enc.input_ids.repeat(args.num_samples, 1).to(device)
             attention_mask = enc.attention_mask.repeat(args.num_samples, 1).to(device)
 
@@ -365,8 +390,10 @@ def main():
                     pad_token_id=tokenizer.eos_token_id,
                 )
             prompt_len = input_ids.shape[1]
-            comps = [tokenizer.decode(out[i, prompt_len:], skip_special_tokens=True)
-                     for i in range(args.num_samples)]
+            comps = [
+                tokenizer.decode(out[i, prompt_len:], skip_special_tokens=True)
+                for i in range(args.num_samples)
+            ]
             all_completions.append(comps)
 
         # Score via Docker (or simulated)
@@ -385,7 +412,8 @@ def main():
         for i, (p, comps) in enumerate(zip(batch, all_completions)):
             prompt_text = tokenizer.apply_chat_template(
                 [{"role": "user", "content": p["prompt"]}],
-                tokenize=False, add_generation_prompt=True
+                tokenize=False,
+                add_generation_prompt=True,
             )
             adv_group = advantage_groups[i] if i < len(advantage_groups) else []
             for j, comp in enumerate(comps):
@@ -406,28 +434,46 @@ def main():
                         f"length {enc_full_uncapped.input_ids.shape[1]} exceeds max_length={args.max_length}; "
                         "response will be truncated, which may corrupt response_mask."
                     )
-                enc = tokenizer(full, truncation=True, max_length=args.max_length, return_tensors="pt")
-                enc_prompt = tokenizer(prompt_text, truncation=True, max_length=args.max_length, return_tensors="pt")
+                enc = tokenizer(
+                    full,
+                    truncation=True,
+                    max_length=args.max_length,
+                    return_tensors="pt",
+                )
+                enc_prompt = tokenizer(
+                    prompt_text,
+                    truncation=True,
+                    max_length=args.max_length,
+                    return_tensors="pt",
+                )
                 plen = enc_prompt.input_ids.shape[1]
                 tlen = enc.input_ids.shape[1]
                 resp_mask = torch.zeros(tlen, dtype=torch.long)
                 resp_mask[plen:] = 1
-                flat_items.append({
-                    "input_ids": enc.input_ids.squeeze(0),
-                    "attention_mask": enc.attention_mask.squeeze(0),
-                    "response_mask": resp_mask,
-                })
+                flat_items.append(
+                    {
+                        "input_ids": enc.input_ids.squeeze(0),
+                        "attention_mask": enc.attention_mask.squeeze(0),
+                        "response_mask": resp_mask,
+                    }
+                )
                 flat_adv.append(adv_group[j])
 
         if not flat_items:
             continue
 
         # Pad batch
-        max_len = min(max(item["input_ids"].shape[0] for item in flat_items), args.max_length)
+        max_len = min(
+            max(item["input_ids"].shape[0] for item in flat_items), args.max_length
+        )
         pad_id = tokenizer.pad_token_id or tokenizer.eos_token_id
         input_ids_list, attn_list, resp_list = [], [], []
         for item in flat_items:
-            ids, attn, resp = item["input_ids"], item["attention_mask"], item["response_mask"]
+            ids, attn, resp = (
+                item["input_ids"],
+                item["attention_mask"],
+                item["response_mask"],
+            )
             pad_len = max_len - ids.shape[0]
             if pad_len > 0:
                 ids = torch.cat([ids, torch.full((pad_len,), pad_id, dtype=torch.long)])
@@ -449,7 +495,9 @@ def main():
         # PCIe bandwidth; instead we keep it on device throughout the loop.
         ref_lp = compute_ref_log_probs(ref_model, input_ids_t, attn_t, resp_t)
 
-        loss, metrics = compute_grpo_loss(model, ref_lp, input_ids_t, attn_t, resp_t, adv_t, args.kl_coeff)
+        loss, metrics = compute_grpo_loss(
+            model, ref_lp, input_ids_t, attn_t, resp_t, adv_t, args.kl_coeff
+        )
         # FF-17 FIX: Scale loss by accumulation steps so effective LR is preserved
         (loss / args.grad_accum_steps).backward()
         accum_step += 1
@@ -477,8 +525,15 @@ def main():
             )
 
         if HAS_WANDB and not args.no_wandb:
-            wandb.log({**metrics, "reward/mean": mean_reward, "reward/flag_capture": success_rate,
-                       "train/step": global_step}, step=global_step)
+            wandb.log(
+                {
+                    **metrics,
+                    "reward/mean": mean_reward,
+                    "reward/flag_capture": success_rate,
+                    "train/step": global_step,
+                },
+                step=global_step,
+            )
 
         # FF-4 FIX: Skip checkpoint at step 0 (before any training has occurred)
         if global_step > 0 and global_step % args.save_steps == 0:
@@ -506,7 +561,9 @@ def main():
         wandb.finish()
 
     logger.info(f"RL training complete. Model saved to {final_dir}")
-    logger.info(f"Next: deepspeed --num_gpus=18 training/train_dpo.py --base-model {final_dir}")
+    logger.info(
+        f"Next: deepspeed --num_gpus=18 training/train_dpo.py --base-model {final_dir}"
+    )
 
 
 if __name__ == "__main__":

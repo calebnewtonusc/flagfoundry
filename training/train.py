@@ -66,7 +66,9 @@ def format_to_text(example: dict, tokenizer) -> dict:
         elif c.get("from") == "gpt":
             messages.append({"role": "assistant", "content": c["value"]})
 
-    text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+    text = tokenizer.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=False
+    )
     return {"text": text}
 
 
@@ -86,8 +88,13 @@ def build_lora_config(r: int = 64) -> LoraConfig:
         r=r,
         lora_alpha=r * 2,
         target_modules=[
-            "q_proj", "k_proj", "v_proj", "o_proj",
-            "gate_proj", "up_proj", "down_proj",
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
         ],
         lora_dropout=0.05,
         bias="none",
@@ -103,8 +110,12 @@ def main():
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--grad-accum", type=int, default=4)
     parser.add_argument("--lr", type=float, default=2e-4)
-    parser.add_argument("--max-length", type=int, default=3072,
-                        help="CTF exploits can be long — 3k tokens")
+    parser.add_argument(
+        "--max-length",
+        type=int,
+        default=3072,
+        help="CTF exploits can be long — 3k tokens",
+    )
     parser.add_argument("--lora-r", type=int, default=64)
     parser.add_argument("--deepspeed", type=str)
     # FF-27 FIX: action="store_true" with default=True means --flash-attn is always
@@ -120,7 +131,9 @@ def main():
     val_file = data_dir / "sharegpt_val.jsonl"
 
     if not train_file.exists():
-        logger.error(f"Training data not found at {train_file}. Run train_prep.py first.")
+        logger.error(
+            f"Training data not found at {train_file}. Run train_prep.py first."
+        )
         return
 
     logger.info(f"Loading model: {args.model}")
@@ -153,7 +166,9 @@ def main():
     effective_batch = args.batch_size * args.grad_accum * n_gpus
     steps_per_epoch = math.ceil(len(train_ds) / effective_batch)
     total_steps = steps_per_epoch * args.epochs
-    logger.info(f"GPUs: {n_gpus} | Effective batch: {effective_batch} | Steps: {total_steps:,}")
+    logger.info(
+        f"GPUs: {n_gpus} | Effective batch: {effective_batch} | Steps: {total_steps:,}"
+    )
 
     training_args = SFTConfig(
         output_dir=args.output_dir,
@@ -176,7 +191,7 @@ def main():
         save_total_limit=3,
         load_best_model_at_end=bool(val_ds),
         report_to=["wandb"] if os.environ.get("WANDB_API_KEY") else [],
-        run_name=f"flagfoundry-sft",
+        run_name="flagfoundry-sft",
         dataloader_num_workers=4,
         remove_unused_columns=False,
         deepspeed=args.deepspeed,
@@ -203,7 +218,9 @@ def main():
     merged.save_pretrained(str(final_dir))
     tokenizer.save_pretrained(str(final_dir))
     logger.info(f"Done. Model saved to {final_dir}")
-    logger.info(f"\nNext: deepspeed --num_gpus=16 training/train_rl.py --base-model {final_dir}")
+    logger.info(
+        f"\nNext: deepspeed --num_gpus=16 training/train_rl.py --base-model {final_dir}"
+    )
 
 
 if __name__ == "__main__":

@@ -68,7 +68,9 @@ class CTFtimeCrawler:
         """Load already-crawled writeup IDs from disk."""
         for f in self.output_dir.glob("*.json"):
             self._seen.add(f.stem)
-        logger.info(f"CTFtime crawler: {len(self._seen):,} already-crawled writeups found")
+        logger.info(
+            f"CTFtime crawler: {len(self._seen):,} already-crawled writeups found"
+        )
 
     def crawl_all(self, years: range | None = None) -> int:
         """Crawl all CTFtime writeups (optionally filtered by year)."""
@@ -82,7 +84,9 @@ class CTFtimeCrawler:
             headers["Cookie"] = f"sessionid={self.session_cookie}"
 
         connector = aiohttp.TCPConnector(limit=self.workers)
-        async with aiohttp.ClientSession(headers=headers, connector=connector) as session:
+        async with aiohttp.ClientSession(
+            headers=headers, connector=connector
+        ) as session:
             events = await self._fetch_events(session, years)
             logger.info(f"Found {len(events):,} events to process")
 
@@ -161,7 +165,9 @@ class CTFtimeCrawler:
 
             try:
                 await asyncio.sleep(REQUEST_DELAY)
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=15)
+                ) as resp:
                     if resp.status != 200:
                         return False
                     html = await resp.text(errors="replace")
@@ -171,8 +177,7 @@ class CTFtimeCrawler:
 
                 # Extract code blocks separately for exploit synthesis
                 code_blocks = [
-                    code.get_text()
-                    for code in soup.find_all(["code", "pre"])
+                    code.get_text() for code in soup.find_all(["code", "pre"])
                 ]
 
                 record = {
@@ -207,13 +212,22 @@ class CTFtimeCrawler:
         """Infer CTF category from metadata."""
         raw = (meta.get("category", "") or "").lower()
         mapping = {
-            "web": "web", "sqli": "web", "xss": "web",
-            "pwn": "pwn", "binary": "pwn", "exploit": "pwn",
-            "crypto": "crypto", "cryptography": "crypto",
-            "forensics": "forensics", "forensic": "forensics",
-            "rev": "rev", "reverse": "rev", "reversing": "rev",
+            "web": "web",
+            "sqli": "web",
+            "xss": "web",
+            "pwn": "pwn",
+            "binary": "pwn",
+            "exploit": "pwn",
+            "crypto": "crypto",
+            "cryptography": "crypto",
+            "forensics": "forensics",
+            "forensic": "forensics",
+            "rev": "rev",
+            "reverse": "rev",
+            "reversing": "rev",
             "osint": "osint",
-            "steg": "steg", "steganography": "steg",
+            "steg": "steg",
+            "steganography": "steg",
             "misc": "misc",
         }
         for key, cat in mapping.items():
@@ -228,7 +242,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Crawl CTFtime writeups")
     parser.add_argument("--output-dir", default="data/raw/ctftime")
     parser.add_argument("--workers", type=int, default=30)
-    parser.add_argument("--years", nargs="+", type=int, help="Years to crawl (default: 2010-2025)")
+    parser.add_argument(
+        "--years", nargs="+", type=int, help="Years to crawl (default: 2010-2025)"
+    )
     args = parser.parse_args()
 
     # FF-16 FIX: Iterate args.years directly instead of constructing a range that fills in

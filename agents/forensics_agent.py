@@ -50,13 +50,20 @@ class ForensicsAgent:
             return
         from transformers import AutoModelForCausalLM, AutoTokenizer
         import torch
-        self._tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
+
+        self._tokenizer = AutoTokenizer.from_pretrained(
+            self.model_path, trust_remote_code=True
+        )
         self._model = AutoModelForCausalLM.from_pretrained(
-            self.model_path, torch_dtype=torch.bfloat16, device_map=self.device,
+            self.model_path,
+            torch_dtype=torch.bfloat16,
+            device_map=self.device,
             trust_remote_code=True,
         )
 
-    def solve(self, description: str, file_bytes: Optional[bytes], classification) -> dict:
+    def solve(
+        self, description: str, file_bytes: Optional[bytes], classification
+    ) -> dict:
         self._load_model()
 
         file_info = ""
@@ -69,7 +76,7 @@ class ForensicsAgent:
 
 {file_info}
 
-Category: {classification.category} — {classification.vuln_class or 'analyze the file'}
+Category: {classification.category} — {classification.vuln_class or "analyze the file"}
 
 Walk through your forensic analysis step by step.
 Write Python code (using scapy, PIL, volatility APIs, etc.) to extract the flag.
@@ -105,21 +112,27 @@ Try multiple approaches if the first doesn't work."""
             b"\x7fELF": "ELF executable (consider pwn category)",
         }
         for magic, desc in magic_map.items():
-            if data[:len(magic)] == magic:
+            if data[: len(magic)] == magic:
                 return f"File type: {desc} ({len(data):,} bytes)"
         return f"File: unknown type ({len(data):,} bytes) — run file/binwalk"
 
     def _generate(self, messages: list[dict]) -> str:
         import torch
+
         input_ids = self._tokenizer.apply_chat_template(
             messages, tokenize=True, add_generation_prompt=True, return_tensors="pt"
         ).to(self._model.device)
         with torch.no_grad():
             output = self._model.generate(
-                input_ids, max_new_tokens=1500, temperature=0.3,
-                do_sample=True, pad_token_id=self._tokenizer.eos_token_id,
+                input_ids,
+                max_new_tokens=1500,
+                temperature=0.3,
+                do_sample=True,
+                pad_token_id=self._tokenizer.eos_token_id,
             )
-        return self._tokenizer.decode(output[0][input_ids.shape[1]:], skip_special_tokens=True)
+        return self._tokenizer.decode(
+            output[0][input_ids.shape[1] :], skip_special_tokens=True
+        )
 
     def _extract_reasoning(self, text: str) -> list[str]:
         steps = []

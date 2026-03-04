@@ -76,8 +76,14 @@ FORENSICS_TECHNIQUES = [
 ]
 
 COMPETITIONS = [
-    "PicoCTF", "CTFzone", "PlaidCTF", "DEFCON CTF Quals",
-    "Google CTF", "hxp CTF", "DiceCTF", "CakeCTF",
+    "PicoCTF",
+    "CTFzone",
+    "PlaidCTF",
+    "DEFCON CTF Quals",
+    "Google CTF",
+    "hxp CTF",
+    "DiceCTF",
+    "CakeCTF",
 ]
 
 
@@ -159,13 +165,16 @@ class ChallengeGenerator:
                 competition=competition,
             )
 
-            response = await self._call_llm(session, CHALLENGE_GENERATION_SYSTEM, prompt)
+            response = await self._call_llm(
+                session, CHALLENGE_GENERATION_SYSTEM, prompt
+            )
             if not response:
                 return False
 
             # Parse JSON from response using raw_decode starting from the first '{'
             # so nested braces and large JSON objects are handled correctly
             import re
+
             first_brace = response.find("{")
             if first_brace == -1:
                 return False
@@ -176,7 +185,9 @@ class ChallengeGenerator:
                 return False
 
             # Validate required fields
-            if not all(k in challenge for k in ["title", "category", "flag", "solution"]):
+            if not all(
+                k in challenge for k in ["title", "category", "flag", "solution"]
+            ):
                 return False
 
             # Save challenge
@@ -217,12 +228,18 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--category", nargs="+", choices=["web", "pwn", "crypto", "forensics"])
+    parser.add_argument(
+        "--category", nargs="+", choices=["web", "pwn", "crypto", "forensics"]
+    )
     parser.add_argument("--count", type=int, default=50)
-    parser.add_argument("--difficulty", default="medium", choices=["easy", "medium", "hard"])
+    parser.add_argument(
+        "--difficulty", default="medium", choices=["easy", "medium", "hard"]
+    )
     parser.add_argument("--backend", default="claude", choices=["claude", "vllm"])
     args = parser.parse_args()
 
     gen = ChallengeGenerator(backend=args.backend)
-    n = gen.generate(categories=args.category, count=args.count, difficulty=args.difficulty)
+    n = gen.generate(
+        categories=args.category, count=args.count, difficulty=args.difficulty
+    )
     print(f"Generated {n:,} challenges to data/challenges/")

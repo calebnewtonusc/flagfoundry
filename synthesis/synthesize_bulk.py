@@ -19,6 +19,7 @@ Usage:
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import asyncio
@@ -103,7 +104,9 @@ class SynthesisPipeline:
         # FF-26 FIX: Shared file handles are written from concurrent coroutines.
         # Create per-category asyncio Locks so only one coroutine writes to each
         # file at a time, preventing interleaved (corrupted) JSONL lines.
-        writer_locks: dict[str, asyncio.Lock] = {cat: asyncio.Lock() for cat in CATEGORIES}
+        writer_locks: dict[str, asyncio.Lock] = {
+            cat: asyncio.Lock() for cat in CATEGORIES
+        }
         connector = aiohttp.TCPConnector(limit=self.concurrency)
 
         async with aiohttp.ClientSession(connector=connector) as session:
@@ -148,7 +151,9 @@ class SynthesisPipeline:
                     code_blocks="\n---\n".join(code_blocks[:5]),
                 )
 
-                response = await self._call_llm(session, WRITEUP_TO_TRIPLE_SYSTEM, prompt_user)
+                response = await self._call_llm(
+                    session, WRITEUP_TO_TRIPLE_SYSTEM, prompt_user
+                )
                 if not response:
                     return False
 
@@ -225,7 +230,7 @@ class SynthesisPipeline:
                     return data["content"][0]["text"]
                 elif resp.status == 429:
                     # Exponential backoff with jitter to avoid thundering herd on 429 errors
-                    backoff = 30 * (2 ** attempt) + random.uniform(0, 10)
+                    backoff = 30 * (2**attempt) + random.uniform(0, 10)
                     await asyncio.sleep(backoff)
                     continue  # retry after backoff
                 else:
@@ -253,7 +258,9 @@ class SynthesisPipeline:
         async with session.post(
             f"{url}/v1/chat/completions",
             json=payload,
-            headers={"Authorization": f"Bearer {os.environ.get('VLLM_API_KEY', 'none')}"},
+            headers={
+                "Authorization": f"Bearer {os.environ.get('VLLM_API_KEY', 'none')}"
+            },
             timeout=aiohttp.ClientTimeout(total=90),
         ) as resp:
             if resp.status == 200:
@@ -264,7 +271,6 @@ class SynthesisPipeline:
     def _parse_response(self, response: str) -> dict | None:
         """Parse LLM response into a structured triple."""
         # Try to extract JSON from the response
-        import re
         response = response.strip()
 
         # Try direct parse
@@ -328,7 +334,9 @@ class SynthesisPipeline:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Synthesize CTF training triples from writeups")
+    parser = argparse.ArgumentParser(
+        description="Synthesize CTF training triples from writeups"
+    )
     parser.add_argument("--backend", default="claude", choices=["claude", "vllm"])
     parser.add_argument("--vllm-urls", nargs="+", help="vLLM server URLs")
     parser.add_argument("--concurrency", type=int, default=20)
