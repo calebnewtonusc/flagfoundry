@@ -1,0 +1,53 @@
+# Environment
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Data (large, not committed)
+data/raw/
+data/processed/
+data/challenges/
+data/dpo/
+data/train/
+data/community/
+
+# Checkpoints (large model weights)
+checkpoints/
+
+# Results
+results/
+*.json.bak
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.docker/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.pem
+*.key
+*.crt
+cookies.txt
+session.pkl
